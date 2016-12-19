@@ -110,6 +110,7 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
     
     fk_pos_solver_l->JntToCart(joint_msr_states_.q, x_l);
     
+    /* solver for dinamics*/
     id_solver_->JntToMass(joint_msr_states_.q, M);
     id_solver_->JntToCoriolis(joint_msr_states_.q, joint_msr_states_.qdot, C);
     jnt_to_jac_solver_l->JntToJac(joint_msr_states_.q, J_l);
