@@ -1,5 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
+#include <geometry_msgs/WrenchStamped.h>
+
 #include <std_msgs/Float64MultiArray.h>
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/chainiksolvervel_pinv.hpp>
@@ -25,15 +27,21 @@ boost::scoped_ptr<KDL::ChainJntToJacSolver> jnt_to_jac_solver_l;
 boost::scoped_ptr<KDL::ChainFkSolverPos_recursive> fk_pos_solver_l;
 boost::scoped_ptr<KDL::ChainIkSolverVel_pinv> ik_vel_solver_l;
 boost::scoped_ptr<KDL::ChainIkSolverPos_NR_JL> ik_pos_solver_l;
-KDL::Chain kdl_chain_l;
+boost::scoped_ptr<KDL::ChainDynParam> id_solver_;
 
-std::vector<double> ql, qr, xo, qpl, qpr, xpo,  qppl, qppr, xppo;
+KDL::Chain kdl_chain_l;
+KDL::JntSpaceInertiaMatrix M; //Inertia matrix
+KDL::JntArray C;   //Coriolis and Gravitational matrices
+
+std::vector<double> ql, qr, xo, qpl, qpr, xpo,  qppl, qppr, xppo, f_l, f_r;
 std::vector<double> tau_l, tau_r;
+
 
 KDL::Frame x_l;
 
 ros::Publisher pub_taul, pub_taur;
 KDL::JntArrayAcc joint_msr_states_;
+KDL::Jacobian J_l;
 
 //TODO: document the code
 
@@ -102,6 +110,10 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
     
     fk_pos_solver_l->JntToCart(joint_msr_states_.q, x_l);
     
+    id_solver_->JntToMass(joint_msr_states_.q, M);
+    id_solver_->JntToCoriolis(joint_msr_states_.q, joint_msr_states_.qdot, C);
+    jnt_to_jac_solver_l->JntToJac(joint_msr_states_.q, J_l);
+    
     std::cout << x_l << std::endl;
     
     // compute
@@ -154,10 +166,10 @@ void compute_control()
     
 }
 
-void publish_control()
-{
-    
-}
+// void publish_control()
+// {
+//     
+// }
 
 
 bool init_chain(ros::NodeHandle &n)
@@ -224,6 +236,26 @@ bool init_chain(ros::NodeHandle &n)
     
 }
 
+void get_force_l( const geometry_msgs::WrenchStamped::ConstPtr msg)
+{
+    f_l[0] = msg->wrench.force.x;
+    f_l[1] = msg->wrench.force.y;
+    f_l[2] = msg->wrench.force.z;
+    f_l[3] = msg->wrench.torque.x;
+    f_l[4] = msg->wrench.torque.y;
+    f_l[6] = msg->wrench.torque.z;
+}
+
+void get_force_r( const geometry_msgs::WrenchStamped::ConstPtr msg)
+{
+    f_r[0] = msg->wrench.force.x;
+    f_r[1] = msg->wrench.force.y;
+    f_r[2] = msg->wrench.force.z;
+    f_r[3] = msg->wrench.torque.x;
+    f_r[4] = msg->wrench.torque.y;
+    f_r[6] = msg->wrench.torque.z;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -231,7 +263,7 @@ int main(int argc, char **argv)
     
     ros::NodeHandle nh("~");
     
-    ros::Subscriber sub_joint_states;
+    ros::Subscriber sub_joint_states, sub_ft_readings_r, sub_ft_readings_l;
     
     ql.resize(7);
     qr.resize(7);
@@ -244,15 +276,25 @@ int main(int argc, char **argv)
     xppo.resize(6);
     tau_l.resize(7);
     tau_r.resize(7);
+    f_l.resize(6);
+    f_r.resize(6);
     
     init_chain(nh);
     
+    KDL::Vector gravity_; 
+    gravity_ = KDL::Vector::Zero();
+    
     jnt_to_jac_solver_l.reset(new KDL::ChainJntToJacSolver(kdl_chain_l));
     fk_pos_solver_l.reset(new KDL::ChainFkSolverPos_recursive(kdl_chain_l));
+    id_solver_.reset( new KDL::ChainDynParam( kdl_chain_l, gravity_) );
+    M.resize(7);
+    C.resize(7);
     joint_msr_states_.resize(7);
     
     
     sub_joint_states = nh.subscribe("/joint_states", 1, &get_states);
+    sub_ft_readings_r = nh.subscribe("/force_torque_r", 1, &get_force_r);
+    sub_ft_readings_l = nh.subscribe("/force_torque_l", 1, &get_force_l);
     
     pub_taul = nh.advertise<std_msgs::Float64MultiArray>(nh.resolveName("tau_l"),0);
     pub_taur = nh.advertise<std_msgs::Float64MultiArray>(nh.resolveName("tau_r"),0);
@@ -261,7 +303,7 @@ int main(int argc, char **argv)
     while(nh.ok())
     {
         compute_control();
-        publish_control();
+//         publish_control();
         rate.sleep();
         ros::spinOnce();
         
