@@ -8,6 +8,9 @@ find_package(catkin REQUIRED COMPONENTS
   lwr_controllers
   roscpp
 )
+find_package(Armadillo REQUIRED)
+
+add_definitions (-fpermissive -std=c++11)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -116,6 +119,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   include
 )
+include_directories(${ARMADILLO_INCLUDE_DIRS})
 
 ## Declare a C++ library
 # add_library(dual_manipulation_control
@@ -145,13 +149,13 @@ include_directories(
 
 
 # Declare a C++ executable
-add_executable(torque_controller src/force_position_control.cpp)
+add_executable(manager src/force_position_control.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(torque_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(manager ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 # Specify libraries to link a library or executable target against
-target_link_libraries(torque_controller
-  ${catkin_LIBRARIES}
+target_link_libraries(manager
+  ${catkin_LIBRARIES} ${ARMADILLO_LIBRARIES}
 )
 
 # all install targets should use catkin DESTINATION variables

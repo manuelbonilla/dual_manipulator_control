@@ -1,0 +1,17 @@
+<launch>
+
+
+	<rosparam file="$(find manager)/test/baby0.yaml" command="load"/>
+	
+	<group ns="left_arm">	  
+ 		<node name="controller_spawner_1" pkg="controller_manager" type="unspawner" args="--stopped  joint_trajectory_controller"/>
+   		
+   		<node name="controller_spawner" pkg="controller_manager" type="spawner" args=" interpolated_differential_kinematics"/>
+	</group>
+
+		
+	<node  name="manager_rviz" pkg="manager" type="manager_rviz" respawn="false" output="screen"/> 
+
+	
+
+</launch>

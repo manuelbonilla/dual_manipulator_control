@@ -1,0 +1,5 @@
+<launch>
+		
+	<node  name="manager_node" pkg="dual_manipulation_control" type="manager" respawn="false" output="screen"/> 
+
+</launch>
