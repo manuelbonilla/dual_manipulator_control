@@ -782,8 +782,8 @@ int main(int argc, char **argv)
         double kv;
         double kp;
 
-        kv = 0;
-        kp = 0;
+        kv = 0.00001;
+        kp = 10;
 
         Kv = kv * I6;
         Kp = kp * I6;
@@ -793,7 +793,7 @@ int main(int argc, char **argv)
         VectorXd rppd(6);
 
         rd << -0.6, 0, 0.2, 0, 0, 0;
-        rpd << 0.01, 0.01, 0.01, 0, 0, 0;
+        rpd << 0.0, 0.0, 0.0, 0, 0, 0;
         rppd << 0, 0, 0, 0, 0, 0;
 
         U1 = rppd + Kv * (rpd - rp) + Kp * (rd - r);
@@ -820,11 +820,48 @@ int main(int argc, char **argv)
 
         Eigen::VectorXd ep(12);
         // ep = Eigen::MatrixXd::Zero(12,1);
+
+        VectorXd xee_l(6);
+        VectorXd xee_r(6);
+
+        // std::cout << "Rc1 \n" << Rc1(1);
+        xee_l << x_ee_l.p(0) , x_ee_l.p(1) , x_ee_l.p(2) , Rc1(1) , Rc1(2) , Rc1(3);
+        xee_r << x_ee_r.p(0) , x_ee_r.p(1) , x_ee_r.p(2) , Rc2(1) , Rc2(2) , Rc2(3);
+
+        // for (int i=0;i<7;++i){
+        //         xee_l(i) = x_ee_l.p(i);
+        // }
+
+        // for (int i=0;i<7;++i){
+        //         xee_r(i) = x_ee_r.p(i);
+        // } 
+
+        VectorXd xpee_l(6);
+        VectorXd xpee_l_last(6);
+
+        if (first_step) {
+            xpee_l_last = xee_l;
+            first_step = 0;
+        }
+
+        xpee_l = (xee_l - xpee_l_last) / dt;
+
+        VectorXd xpee_r(6);
+        VectorXd xpee_r_last(6);
+
+        if (first_step) {
+            xpee_r_last = xee_r;
+            first_step = 0;
+        }
+
+        xpee_r = (xee_r - xpee_r_last) / dt;
+
+
         for(int i=0;i<6;++i)
         {
             if (i<3){
-                ep(i) = (rd(i) - x_ee_l.p(i));
-                ep(i+6) = (rd(i) - x_ee_r.p(i));
+                ep(i) = /*(rd(i) - x_ee_l.p(i));*/ Kv(i,i) * (rpd(i) - xpee_l(i)) + Kp(i,i) * (rd(i) - xee_l(i));
+                ep(i+6) = /*(rd(i) - x_ee_r.p(i));*/ Kv(i,i) * (rpd(i) - xpee_r(i)) + Kp(i,i) * (rd(i) - xee_r(i));
             }
             else
             {
@@ -833,8 +870,8 @@ int main(int argc, char **argv)
             }
         }
         // ep.block(6,0,6,1) = (rd - r);
-
-        qppdes = Jpinv * 30 * ep;
+ 
+        qppdes = Jpinv * ep;
         // qppdes = Eigen::MatrixXd::Zero(12,1);
 
         // qppdes<< 1,1,1,1,1,1,1,1,1,1,1,1,1,1;
