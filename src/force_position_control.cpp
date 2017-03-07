@@ -1,6 +1,11 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/WrenchStamped.h>
+// #include <gazebo/physics/physics.hh>
+// #include <gazebo/common/common.hh>
+// #include <gazebo/physics/physics.hh>
+// #include <gazebo/gazebo.hh>
+// #include <ros/ros.h>
 #include <gazebo_msgs/LinkStates.h>
 
 #include <std_msgs/Float64MultiArray.h>
@@ -21,7 +26,7 @@
 #include <kdl/frames.hpp>
 #include <kdl/chaindynparam.hpp> //this to compute the gravity vector
 #include <kdl/chainjnttojacsolver.hpp>
-#include <kdl/chainfksolverpos_recursive.hpp>
+// #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl_parser/kdl_parser.hpp>
 #include <kdl/frames_io.hpp>
 #include <armadillo>
@@ -90,16 +95,17 @@ std::vector<double> tau_l, tau_r;
 Eigen::VectorXd xo(6);
 Eigen::VectorXd xpo(6);
 
-KDL::Frame x_ee_l;
-KDL::Frame x_ee_r;
-
-ros::Publisher pub_taul, pub_taur;
+KDL::Frame x_ee_l, x_ee_l_last;
+KDL::Frame x_ee_r, x_ee_r_last;
+ros::Publisher pub_taul, pub_taur,  pub_command_l, pub_command_r, pub_damping_l, pub_damping_r, pub_stiffness_l, pub_stiffness_r;
 KDL::JntArrayAcc joint_msr_states_l;
 KDL::Jacobian J_l;
 KDL::JntArrayAcc joint_msr_states_r;
 KDL::Jacobian J_r;
 
 arma::mat Ws_arma;
+
+KDL::Frame init_pose_l, init_pose_r;
 
 //TODO: document the code
 
@@ -110,7 +116,16 @@ void activate_controller_cb( const std_msgs::Float64::ConstPtr msg)
     if (msg->data > 0.0)
     {
         flag_run_ =  true;
+        init_pose_r = x_ee_r;
+        init_pose_l = x_ee_l;
+        std::cout << "x_ee_l: \n" << x_ee_l << std::endl;
+        std::cout << "x_ee_r: \n" << x_ee_r << std::endl;
     }
+    else
+    {
+        flag_run_ =  false;
+    }
+
 }
 
 void get_states(const sensor_msgs::JointState::ConstPtr msg)
@@ -195,7 +210,6 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
     id_solver_r->JntToCoriolis(joint_msr_states_r.q, joint_msr_states_r.qdot, C_r);
     jnt_to_jac_solver_r->JntToJac(joint_msr_states_r.q, J_r);
     id_solver_r->JntToGravity(joint_msr_states_r.q, G_r);
-
     // compute
     // flag_run_ = true;
 }
@@ -227,6 +241,24 @@ void compute_control()
 
     pub_taul.publish(msg_tau_l);
     pub_taur.publish(msg_tau_r);
+
+
+
+    std_msgs::Float64MultiArray zero, q_l_feed, q_r_feed;
+    for (int i = 0; i < 7; ++i)
+    {
+        zero.data.push_back(0.0);
+        q_l_feed.data.push_back(joint_msr_states_l.q(i));
+        q_r_feed.data.push_back(joint_msr_states_r.q(i));
+    }
+
+    pub_damping_l.publish(zero);
+    pub_damping_r.publish(zero);
+    pub_stiffness_l.publish(zero);
+    pub_stiffness_r.publish(zero);
+    pub_command_l.publish(q_l_feed);
+    pub_command_r.publish(q_r_feed);
+
 
 }
 
@@ -325,14 +357,14 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
     {
         for (int j = 0; j < msg->name.size(); ++j)
         {
-            if (msg->name[sphere_index] != "sphere::sphere")
+            if (msg->name[sphere_index] != "cube::cube")
             {
                 sphere_index++;
                 // ROS_INFO_STREAM("Not Sphere Index: " << sphere_index);
             }
             else
             {
-                ROS_INFO_STREAM("Sphere Index: " << sphere_index);
+                ROS_INFO_STREAM("Cube Index: " << sphere_index);
                 break;
             }
         }
@@ -403,6 +435,12 @@ int main(int argc, char **argv)
 
     pub_taul = nh.advertise<std_msgs::Float64MultiArray>("/left_arm/joint_impedance_controller/additional_torque", 0);
     pub_taur = nh.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/additional_torque", 0);
+    pub_command_l = nh.advertise<std_msgs::Float64MultiArray>("/left_arm/joint_impedance_controller/command", 0);
+    pub_command_r = nh.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/command", 0);
+    pub_damping_l = nh.advertise<std_msgs::Float64MultiArray>("/left_arm/joint_impedance_controller/damping", 0);
+    pub_damping_r = nh.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/damping", 0);
+    pub_stiffness_l = nh.advertise<std_msgs::Float64MultiArray>("/left_arm/joint_impedance_controller/stiffness", 0);
+    pub_stiffness_r = nh.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/stiffness", 0);
 
     KDL::Vector gravity_;
     gravity_ = KDL::Vector::Zero();
@@ -446,10 +484,12 @@ int main(int argc, char **argv)
 
 
     int ccc = 0;
-    while (ros::ok())
+    double t_total = 0.0;
+    while (ros::ok() && flag_run_)
     {
         ros::spinOnce();
         start = ros::Time::now();
+        t_total += dt;
 
         VectorXd G(14);
 
@@ -834,7 +874,7 @@ int main(int argc, char **argv)
 
         // for (int i=0;i<7;++i){
         //         xee_r(i) = x_ee_r.p(i);
-        // } 
+        // }
 
         VectorXd xpee_l(6);
         VectorXd xpee_l_last(6);
@@ -842,6 +882,7 @@ int main(int argc, char **argv)
         if (first_step) {
             xpee_l_last = xee_l;
             first_step = 0;
+            x_ee_l_last = x_ee_l;
         }
 
         xpee_l = (xee_l - xpee_l_last) / dt;
@@ -852,25 +893,37 @@ int main(int argc, char **argv)
         if (first_step) {
             xpee_r_last = xee_r;
             first_step = 0;
+            x_ee_r_last = x_ee_r;
         }
 
         xpee_r = (xee_r - xpee_r_last) / dt;
 
+        init_pose_l.p = init_pose_l.p * .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
+        init_pose_r.p = init_pose_r.p * .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
+        KDL::Twist pose_error_l = diff(x_ee_l, init_pose_l);
+        KDL::Twist pose_error_r = diff(x_ee_r, init_pose_r);
 
-        for(int i=0;i<6;++i)
+        KDL::Twist pose_error_derivative_l = diff(x_ee_l, x_ee_l_last) / dt;
+        KDL::Twist pose_error_derivative_r = diff(x_ee_r, x_ee_r_last) / dt;
+
+        double kp_control;
+        nh.param<double>("kp", kp_control , 1.0);
+        double kv_control;
+        nh.param<double>("kv", kv_control , 0.2);
+        for (int i = 0; i < 6; ++i)
         {
-            if (i<3){
-                ep(i) = /*(rd(i) - x_ee_l.p(i));*/ Kv(i,i) * (rpd(i) - xpee_l(i)) + Kp(i,i) * (rd(i) - xee_l(i));
-                ep(i+6) = /*(rd(i) - x_ee_r.p(i));*/ Kv(i,i) * (rpd(i) - xpee_r(i)) + Kp(i,i) * (rd(i) - xee_r(i));
-            }
-            else
-            {
-                ep(i) = 0;
-                ep(i+6) = 0;
-            }
+            // if (i<3){
+            ep(i) = /*(rd(i) - x_ee_l.p(i));*/ kv_control* pose_error_derivative_l(i) + kp_control* pose_error_l(i);
+            ep(i + 6) = /*(rd(i) - x_ee_r.p(i));*/ kv_control * pose_error_derivative_r(i) + kp_control* pose_error_r(i);
+            // }
+            // else
+            // {
+            // ep(i) = 0;
+            // ep(i+6) = 0;
+            // }
         }
         // ep.block(6,0,6,1) = (rd - r);
- 
+
         qppdes = Jpinv * ep;
         // qppdes = Eigen::MatrixXd::Zero(12,1);
 
@@ -884,7 +937,7 @@ int main(int argc, char **argv)
         // }
 
 
-        Tau_A = M * qppdes ;//+ C /*+ G*/ ;
+        Tau_A = M * qppdes + C /*+ G*/ ;
 
         VectorXd Fhsd(6);
         MatrixXd Wspinv(6, 6);
@@ -943,10 +996,10 @@ int main(int argc, char **argv)
 
         for (int i = 0 ; i < 7 ; i++) {
             // if (Tau_C(i) < 20) {
-                tau_l[i] = Tau_C(i);
+            tau_l[i] = Tau_C(i);
             // }
             // else {
-                // tau_l[i] = 20;
+            // tau_l[i] = 20;
             // }
         }
 
@@ -956,10 +1009,10 @@ int main(int argc, char **argv)
             j = i - 7;
             // if (Tau_C(i) < 20) {
 
-                tau_r[j] = Tau_C(i);
+            tau_r[j] = Tau_C(i);
             // }
             // else {
-                // tau_r[i] = 20;
+            // tau_r[i] = 20;
             // }
         }
 
