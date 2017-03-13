@@ -72,14 +72,9 @@
             <arg name="debug" value="false"/>
         </include>
 
-        <!-- calibration transformations -->
-        <include file="$(find vito_description)/launch/fake_calibration.launch.xml"/>
+        <param name="cube_description" command="$(find xacro)/xacro --inorder $(find dual_manipulation_control)/urdf/cube.urdf.xacro" />
+        <node name="cube_spawner" pkg="gazebo_ros" type="spawn_model" args="-param cube_description -urdf -model cube -x -0.8 -y 0 -z 2.15 -R 0 -P 0 -Y 0" respawn="false" output="screen"/>
 
-        <param name="cube_description" command="$(find xacro)/xacro --inorder $(find vito_description)/model/cube.urdf.xacro" />
-        <node name="cube_spawner" pkg="gazebo_ros" type="spawn_model" args="-param cube_description -urdf -model cube -x -0.8 -y 0 -z 1.15 -R 0 -P 0 -Y 0" respawn="false" output="screen"/>
-        <!-- spawn the environment in gazebo -->
-        <!--param name="environment_description" command="$(find xacro)/xacro.py $(find vito_description)/robot/environment.urdf.xacro"/>
-        <node name="spawn_env" pkg="gazebo_ros" type="spawn_model" args="-param environment_description -urdf -model environment -x 0 -y 0 -z 1.0 -R 0 -P 0 -Y 0" respawn="false" output="screen"/-->
     </group>
     <!-- calibration transformations -->
     <group unless="$(arg use_robot_sim)">
