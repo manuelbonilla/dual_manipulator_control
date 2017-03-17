@@ -6,7 +6,7 @@ void activate_controller_cb( const std_msgs::Float64::ConstPtr msg)
 {
     if (msg->data > 0.0)
     {
-        
+
         init_pose_r = x_ee_r;
         init_pose_l = x_ee_l;
         init_pose_r.p(0) = xo[0];
@@ -487,31 +487,31 @@ int main(int argc, char **argv)
         KDL::Twist pose_error_r = diff(x_ee_r, init_pose_r);
 
         std::cout << "errorsl: " << pose_error_l(0) << " "
-                                << pose_error_l(1) << " "
-                                << pose_error_l(2) << " "
-                                << pose_error_l(3) << " "
-                                << pose_error_l(4) << " "
-                                << pose_error_l(5) << std::endl;
+                  << pose_error_l(1) << " "
+                  << pose_error_l(2) << " "
+                  << pose_error_l(3) << " "
+                  << pose_error_l(4) << " "
+                  << pose_error_l(5) << std::endl;
         std::cout << "errorsr: " << pose_error_r(0) << " "
-                                << pose_error_r(1) << " "
-                                << pose_error_r(2) << " "
-                                << pose_error_r(3) << " "
-                                << pose_error_r(4) << " "
-                                << pose_error_r(5) << std::endl;
+                  << pose_error_r(1) << " "
+                  << pose_error_r(2) << " "
+                  << pose_error_r(3) << " "
+                  << pose_error_r(4) << " "
+                  << pose_error_r(5) << std::endl;
 
         KDL::Twist pose_error_derivative_l = diff(x_ee_l, x_ee_l_last) / dt;
         KDL::Twist pose_error_derivative_r = diff(x_ee_r, x_ee_r_last) / dt;
 
         double kp_control;
-        nh.param<double>("/kp", kp_control , 1.0);
+        nh.param<double>("/kp", kp_control , 10.0);
         double kv_control;
-        nh.param<double>("/kv", kv_control , 0.2);
-        Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(12,1);
+        nh.param<double>("/kv", kv_control , 0.001);
+        Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(12, 1);
         for (int i = 0; i < 6; ++i)
         {
             // if (i<3){
             ep(i) =  pose_error_l(i);
-            ep(i + 6) = pose_error_r(i)*0;
+            ep(i + 6) = pose_error_r(i) * 0;
             delta_x(i) =  pose_error_l(i);
             delta_x(i + 6) = pose_error_r(i);
             // }
@@ -535,10 +535,10 @@ int main(int argc, char **argv)
         //     qppdes(i) = 1000.0*(qd(i) - q(i)) ;
         // }
 
-        Eigen::MatrixXd Kx_= Eigen::MatrixXd::Identity(12,12);
-        Eigen::MatrixXd Dx_= Eigen::MatrixXd::Identity(12,12);
+        Eigen::MatrixXd Kx_ = Eigen::MatrixXd::Identity(12, 12);
+        Eigen::MatrixXd Dx_ = Eigen::MatrixXd::Identity(12, 12);
         // Tau_A = M * qppdes - kp_control*qp + C /*+ G*/ ;
-        Tau_A = J.transpose() * (kp_control * Kx_ * delta_x + kp_control * Dx_ * J * qp);
+        Tau_A = J.transpose() * (kp_control * Kx_ * delta_x + kv_control * Dx_ * J * qp);
 
         Eigen::VectorXd Fhsd(6);
         Eigen::MatrixXd Wspinv(6, 6);
