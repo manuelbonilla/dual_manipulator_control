@@ -1,11 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/WrenchStamped.h>
-// #include <gazebo/physics/physics.hh>
-// #include <gazebo/common/common.hh>
-// #include <gazebo/physics/physics.hh>
-// #include <gazebo/gazebo.hh>
-// #include <ros/ros.h>
+
 #include <gazebo_msgs/LinkStates.h>
 
 #include <std_msgs/Float64MultiArray.h>
@@ -55,7 +51,7 @@ int first_step, cmd_flag_, first_time_link_states, sphere_index;
 
 void pseudo_inverse(const Eigen::MatrixXd &M_, Eigen::MatrixXd &M_pinv_, bool damped = true)
 {
-    double lambda_ = damped ? 0.2 : 0.0;
+    double lambda_ = damped ? 0.02 : 0.0;
 
     JacobiSVD<MatrixXd> svd(M_, ComputeFullU | ComputeFullV);
     JacobiSVD<MatrixXd>::SingularValuesType sing_vals_ = svd.singularValues();
@@ -115,11 +111,18 @@ void activate_controller_cb( const std_msgs::Float64::ConstPtr msg)
 {
     if (msg->data > 0.0)
     {
-        flag_run_ =  true;
+        
         init_pose_r = x_ee_r;
         init_pose_l = x_ee_l;
+        init_pose_r.p(0) = xo[0];
+        init_pose_r.p(1) = xo[1] + .15;
+        init_pose_r.p(2) = xo[2];
+        init_pose_l.p(0) = xo[0];
+        init_pose_l.p(1) = xo[1] - .15;
+        init_pose_l.p(2) = xo[2];
         std::cout << "x_ee_l: \n" << x_ee_l << std::endl;
         std::cout << "x_ee_r: \n" << x_ee_r << std::endl;
+        flag_run_ =  true;
     }
     else
     {
@@ -373,7 +376,7 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 
     xo[0] = msg->pose[sphere_index].position.x;
     xo[1] = msg->pose[sphere_index].position.y;
-    xo[2] = msg->pose[sphere_index].position.z;
+    xo[2] = msg->pose[sphere_index].position.z - 1.0;
 
     qxo[0] = msg->pose[sphere_index].orientation.x;
     qxo[1] = msg->pose[sphere_index].orientation.y;
@@ -396,7 +399,7 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 
     xpo(0) = msg->twist[sphere_index].linear.x;
     xpo(1) = msg->twist[sphere_index].linear.y;
-    xpo(2) = msg->twist[sphere_index].linear.z;
+    xpo(2) = msg->twist[sphere_index].linear.z;;
     xpo(3) = msg->twist[sphere_index].angular.x;
     xpo(4) = msg->twist[sphere_index].angular.y;
     xpo(5) = msg->twist[sphere_index].angular.z;
@@ -898,23 +901,39 @@ int main(int argc, char **argv)
 
         xpee_r = (xee_r - xpee_r_last) / dt;
 
-        init_pose_l.p = init_pose_l.p * .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
-        init_pose_r.p = init_pose_r.p * .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
+        // init_pose_l.p(1) = init_pose_l.p(1) + .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
+        // init_pose_r.p(1) = init_pose_r.p(1) + .1 * sin(2.0 * M_PI * 1.0 / 10.0 * t_total);
         KDL::Twist pose_error_l = diff(x_ee_l, init_pose_l);
         KDL::Twist pose_error_r = diff(x_ee_r, init_pose_r);
+
+        std::cout << "errorsl: " << pose_error_l(0) << " "
+                                << pose_error_l(1) << " "
+                                << pose_error_l(2) << " "
+                                << pose_error_l(3) << " "
+                                << pose_error_l(4) << " "
+                                << pose_error_l(5) << std::endl;
+        std::cout << "errorsr: " << pose_error_r(0) << " "
+                                << pose_error_r(1) << " "
+                                << pose_error_r(2) << " "
+                                << pose_error_r(3) << " "
+                                << pose_error_r(4) << " "
+                                << pose_error_r(5) << std::endl;
 
         KDL::Twist pose_error_derivative_l = diff(x_ee_l, x_ee_l_last) / dt;
         KDL::Twist pose_error_derivative_r = diff(x_ee_r, x_ee_r_last) / dt;
 
         double kp_control;
-        nh.param<double>("kp", kp_control , 1.0);
+        nh.param<double>("/kp", kp_control , 1.0);
         double kv_control;
-        nh.param<double>("kv", kv_control , 0.2);
+        nh.param<double>("/kv", kv_control , 0.2);
+        Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(12,1);
         for (int i = 0; i < 6; ++i)
         {
             // if (i<3){
-            ep(i) = /*(rd(i) - x_ee_l.p(i));*/ kv_control* pose_error_derivative_l(i) + kp_control* pose_error_l(i);
-            ep(i + 6) = /*(rd(i) - x_ee_r.p(i));*/ kv_control * pose_error_derivative_r(i) + kp_control* pose_error_r(i);
+            ep(i) =  pose_error_l(i);
+            ep(i + 6) = pose_error_r(i)*0;
+            delta_x(i) =  pose_error_l(i);
+            delta_x(i + 6) = pose_error_r(i);
             // }
             // else
             // {
@@ -936,8 +955,10 @@ int main(int argc, char **argv)
         //     qppdes(i) = 1000.0*(qd(i) - q(i)) ;
         // }
 
-
-        Tau_A = M * qppdes + C /*+ G*/ ;
+        Eigen::MatrixXd Kx_= Eigen::MatrixXd::Identity(12,12);
+        Eigen::MatrixXd Dx_= Eigen::MatrixXd::Identity(12,12);
+        // Tau_A = M * qppdes - kp_control*qp + C /*+ G*/ ;
+        Tau_A = J.transpose() * (kp_control * Kx_ * delta_x + kp_control * Dx_ * J * qp);
 
         VectorXd Fhsd(6);
         MatrixXd Wspinv(6, 6);
