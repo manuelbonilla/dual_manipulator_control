@@ -57,12 +57,13 @@ KDL::JntArray G_r;
 std::vector<double> ql, qr, qpl, qpr,  qppl, qppr, xppo, f_l, f_r;
 std::vector<double> tau_l, tau_r;
 
-Eigen::VectorXd xo(6);
-Eigen::VectorXd xpo(6);
+Eigen::VectorXd xo;
+Eigen::VectorXd xpo;
 
+int n_joints, n_dim_space;
 KDL::Frame x_ee_l, x_ee_l_last;
 KDL::Frame x_ee_r, x_ee_r_last;
-ros::Publisher pub_taul, pub_taur,  pub_command_l, pub_command_r, pub_damping_l, pub_damping_r, pub_stiffness_l, pub_stiffness_r;
+ros::Publisher pub_taul, pub_taur,  pub_command_l, pub_command_r, pub_damping_l, pub_damping_r, pub_stiffness_l, pub_stiffness_r, pub_errors;
 KDL::JntArrayAcc joint_msr_states_l;
 KDL::Jacobian J_l;
 KDL::JntArrayAcc joint_msr_states_r;
@@ -74,6 +75,9 @@ KDL::Frame init_pose_l, init_pose_r;
 
 bool first_time_joint_states;
 std::vector<int> joint_index;
+
+KDL::Twist pose_error_l;
+KDL::Twist pose_error_r;
 
 //TODO: document the code
 
@@ -97,7 +101,8 @@ void pseudo_inverse(const Eigen::MatrixXd &M_, Eigen::MatrixXd &M_pinv_, bool da
 void get_joint_index(const sensor_msgs::JointState::ConstPtr msg)
 {
 	std::vector<std::string> angle_names = {"left_arm_a1_joint", "left_arm_a2_joint", "left_arm_e1_joint", "left_arm_a3_joint", "left_arm_a4_joint", "left_arm_a5_joint", "left_arm_a6_joint",
-	                                        "right_arm_a1_joint", "right_arm_a2_joint", "right_arm_e1_joint", "right_arm_a3_joint", "right_arm_a4_joint", "right_arm_a5_joint", "right_arm_a6_joint"};
+	                                        "right_arm_a1_joint", "right_arm_a2_joint", "right_arm_e1_joint", "right_arm_a3_joint", "right_arm_a4_joint", "right_arm_a5_joint", "right_arm_a6_joint"
+	                                       };
 	for (auto js : angle_names)
 	{
 		int i = 0;
@@ -110,6 +115,9 @@ void get_joint_index(const sensor_msgs::JointState::ConstPtr msg)
 			i++;
 		}
 	}
+	for (int i = 0; i < angle_names.size(); ++i)
+		std::cout << "joint " << angle_names[i] << "in on joint_states index: " << joint_index[i] << std::endl;
+	std::cout << std::endl;
 }
 
 void get_states(const sensor_msgs::JointState::ConstPtr msg)
@@ -120,72 +128,23 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
 		get_joint_index(msg);
 		first_time_joint_states = false;
 	}
-	ql[0] = msg->position[joint_index[0]];
-	ql[1] = msg->position[joint_index[1]];
-	ql[2] = msg->position[joint_index[2]];
-	ql[3] = msg->position[joint_index[3]];
-	ql[4] = msg->position[joint_index[4]];
-	ql[5] = msg->position[joint_index[5]];
-	ql[6] = msg->position[joint_index[6]];
 
-	qr[0] = msg->position[joint_index[7]];
-	qr[1] = msg->position[joint_index[8]];
-	qr[2] = msg->position[joint_index[9]];
-	qr[3] = msg->position[joint_index[10]];
-	qr[4] = msg->position[joint_index[11]];
-	qr[5] = msg->position[joint_index[12]];
-	qr[6] = msg->position[joint_index[13]];
+	for (int i = 0; i < n_joints; i++)
+	{
+		ql[i] = msg->position[joint_index[i]];
+		qr[i] = msg->position[joint_index[i + n_joints]];
+		qpl[i] = msg->velocity[joint_index[i]];
+		qpr[i] = msg->velocity[joint_index[i + n_joints]];
+		qppl[i] = msg->effort[joint_index[i]] * 0.;
+		qppr[i] = msg->effort[joint_index[i + n_joints]] * 0.;
+		joint_msr_states_l.q(i) = ql[i];
+		joint_msr_states_r.q(i) = qr[i];
+		joint_msr_states_l.qdot(i) = qpl[i];
+		joint_msr_states_r.qdot(i) = qpr[i];
+	}
 
-	qpl[0] = msg->velocity[joint_index[0]];
-	qpl[1] = msg->velocity[joint_index[1]];
-	qpl[2] = msg->velocity[joint_index[2]];
-	qpl[3] = msg->velocity[joint_index[3]];
-	qpl[4] = msg->velocity[joint_index[4]];
-	qpl[5] = msg->velocity[joint_index[5]];
-	qpl[6] = msg->velocity[joint_index[6]];
-
-	qpr[0] = msg->velocity[joint_index[7]];
-	qpr[1] = msg->velocity[joint_index[8]];
-	qpr[2] = msg->velocity[joint_index[9]];
-	qpr[3] = msg->velocity[joint_index[10]];
-	qpr[4] = msg->velocity[joint_index[11]];
-	qpr[5] = msg->velocity[joint_index[12]];
-	qpr[6] = msg->velocity[joint_index[13]];
-
-	qppl[0] = msg->effort[joint_index[0]];
-	qppl[1] = msg->effort[joint_index[1]];
-	qppl[2] = msg->effort[joint_index[2]];
-	qppl[3] = msg->effort[joint_index[3]];
-	qppl[4] = msg->effort[joint_index[4]];
-	qppl[5] = msg->effort[joint_index[5]];
-	qppl[6] = msg->effort[joint_index[6]];
-
-	qppr[0] = msg->effort[joint_index[7]];
-	qppr[1] = msg->effort[joint_index[8]];
-	qppr[2] = msg->effort[joint_index[9]];
-	qppr[3] = msg->effort[joint_index[10]];
-	qppr[4] = msg->effort[joint_index[11]];
-	qppr[5] = msg->effort[joint_index[12]];
-	qppr[6] = msg->effort[joint_index[13]];
-
-	joint_msr_states_l.q(0) = ql[0];
-	joint_msr_states_l.q(1) = ql[1];
-	joint_msr_states_l.q(2) = ql[2];
-	joint_msr_states_l.q(3) = ql[3];
-	joint_msr_states_l.q(4) = ql[4];
-	joint_msr_states_l.q(5) = ql[5];
-	joint_msr_states_l.q(6) = ql[6];
 
 	fk_pos_solver_l->JntToCart(joint_msr_states_l.q, x_ee_l);
-
-	joint_msr_states_r.q(1) = qr[1];
-	joint_msr_states_r.q(2) = qr[2];
-	joint_msr_states_r.q(0) = qr[0];
-	joint_msr_states_r.q(3) = qr[3];
-	joint_msr_states_r.q(4) = qr[4];
-	joint_msr_states_r.q(5) = qr[5];
-	joint_msr_states_r.q(6) = qr[6];
-
 	fk_pos_solver_r->JntToCart(joint_msr_states_r.q, x_ee_r);
 
 	/* solver for dinamics*/
@@ -208,7 +167,7 @@ void compute_control()
 	//conti del paper
 
 	std_msgs::Float64MultiArray msg_tau_l, msg_tau_r;
-	for (int i = 0; i < 7; ++i)
+	for (int i = 0; i < n_joints; ++i)
 	{
 		if (std::abs(tau_l[i]) < 200 )
 		{
@@ -233,13 +192,21 @@ void compute_control()
 
 
 
-	std_msgs::Float64MultiArray zero, q_l_feed, q_r_feed;
-	for (int i = 0; i < 7; ++i)
+	std_msgs::Float64MultiArray zero, q_l_feed, q_r_feed, msg_errors;
+	for (int i = 0; i < n_joints; ++i)
 	{
 		zero.data.push_back(0.0);
 		q_l_feed.data.push_back(joint_msr_states_l.q(i));
 		q_r_feed.data.push_back(joint_msr_states_r.q(i));
 	}
+	for (int i = 0; i < n_dim_space*2; ++i)
+	{
+		if (i < n_dim_space)
+			msg_errors.data.push_back(pose_error_l(i));
+		else
+			msg_errors.data.push_back(pose_error_r(i - 6));
+	}
+
 
 	pub_damping_l.publish(zero);
 	pub_damping_r.publish(zero);
@@ -247,6 +214,7 @@ void compute_control()
 	pub_stiffness_r.publish(zero);
 	pub_command_l.publish(q_l_feed);
 	pub_command_r.publish(q_r_feed);
+	pub_errors.publish(msg_errors);
 
 
 }
@@ -313,6 +281,8 @@ bool init_chain(ros::NodeHandle &n)
 		return false;
 	}
 
+	return true;
+
 }
 
 void get_force_l( const geometry_msgs::WrenchStamped::ConstPtr msg)
@@ -338,8 +308,8 @@ void get_force_r( const geometry_msgs::WrenchStamped::ConstPtr msg)
 void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 {
 	Eigen::VectorXd qxo(4);
-	// Eigen::VectorXd xo(6);
-	// Eigen::VectorXd xpo(6);
+	// Eigen::VectorXd xo(n_dim_space);
+	// Eigen::VectorXd xpo(n_dim_space);
 
 	// ROS_INFO_STREAM("Into get_obj_pos, first_time_link_states =  " << first_time_link_states);
 	if (first_time_link_states == 1)
@@ -362,7 +332,7 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 
 	xo[0] = msg->pose[sphere_index].position.x;
 	xo[1] = msg->pose[sphere_index].position.y;
-	xo[2] = msg->pose[sphere_index].position.z - 1.0;
+	xo[2] = msg->pose[sphere_index].position.z - 1.0; // table height;
 
 	qxo[0] = msg->pose[sphere_index].orientation.x;
 	qxo[1] = msg->pose[sphere_index].orientation.y;
@@ -389,24 +359,30 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 	xpo(3) = msg->twist[sphere_index].angular.x;
 	xpo(4) = msg->twist[sphere_index].angular.y;
 	xpo(5) = msg->twist[sphere_index].angular.z;
+	// std::cout << "Object Pose   ";
+	// for (int i=1; i<6; ++i)
+	// 	std::cout << xo(i) << " ";
+	// std::cout << std::endl;
 }
 
 
-void init_variables(ros::NodeHandle &nh)
+bool init_variables(ros::NodeHandle &nh)
 {
-	ql.resize(7);
-	qr.resize(7);
-	qpl.resize(7);
-	qpr.resize(7);
-	qppl.resize(7);
-	qppr.resize(7);
-	xo.resize(6);
-	xpo.resize(6);
-	xppo.resize(6);
-	tau_l.resize(7);
-	tau_r.resize(7);
-	f_l.resize(6);
-	f_r.resize(6);
+	n_joints = 7;
+	n_dim_space = 6;
+	ql.resize(n_joints);
+	qr.resize(n_joints);
+	qpl.resize(n_joints);
+	qpr.resize(n_joints);
+	qppl.resize(n_joints);
+	qppr.resize(n_joints);
+	xo.resize(n_dim_space);
+	xpo.resize(n_dim_space);
+	xppo.resize(n_dim_space);
+	tau_l.resize(n_joints);
+	tau_r.resize(n_joints);
+	f_l.resize(n_dim_space);
+	f_r.resize(n_dim_space);
 
 	first_time_joint_states = true;
 
@@ -416,26 +392,31 @@ void init_variables(ros::NodeHandle &nh)
 	KDL::Vector gravity_;
 	gravity_ = KDL::Vector::Zero();
 
-	init_chain(nh);
+	if (!init_chain(nh))
+	{
+		std::cout << "Not posible to initialize chains" << std::endl;
+		return false;
+	}
 
 	jnt_to_jac_solver_l.reset(new KDL::ChainJntToJacSolver(kdl_chain_l));
 	fk_pos_solver_l.reset(new KDL::ChainFkSolverPos_recursive(kdl_chain_l));
 	id_solver_l.reset(new KDL::ChainDynParam(kdl_chain_l, gravity_) );
-	M_l.resize(7);
-	C_l.resize(7);
-	G_l.resize(7);
-	joint_msr_states_l.resize(7);
+	M_l.resize(n_joints);
+	C_l.resize(n_joints);
+	G_l.resize(n_joints);
+	joint_msr_states_l.resize(n_joints);
 
 	jnt_to_jac_solver_r.reset(new KDL::ChainJntToJacSolver(kdl_chain_r));
 	fk_pos_solver_r.reset(new KDL::ChainFkSolverPos_recursive(kdl_chain_r));
 	id_solver_r.reset(new KDL::ChainDynParam(kdl_chain_r, gravity_) );
-	M_r.resize(7);
-	C_r.resize(7);
-	G_r.resize(7);
-	joint_msr_states_r.resize(7);
+	M_r.resize(n_joints);
+	C_r.resize(n_joints);
+	G_r.resize(n_joints);
+	joint_msr_states_r.resize(n_joints);
 
 	//
 	J_l.resize(kdl_chain_l.getNrOfJoints());
 	J_r.resize(kdl_chain_r.getNrOfJoints());
+	return true;
 }
 

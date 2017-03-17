@@ -46,8 +46,8 @@ int main(int argc, char **argv)
     std_msgs::Float64MultiArray zero, q_l_feed, q_r_feed, stiffness, damping, add_torque;
     for (int i=0; i<7; ++i)
     {
-        stiffness.data.push_back(1000.0);
-        damping.data.push_back(0.7);
+        stiffness.data.push_back(300.0);
+        damping.data.push_back(0.5);
         add_torque.data.push_back(0.0);
         q_l_feed.data.push_back(q_i_l[i]);
         q_r_feed.data.push_back(q_i_r[i]);
