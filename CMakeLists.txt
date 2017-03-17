@@ -28,7 +28,7 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS}
   # ${GAZEBO_INCLUDE_DIRS}
-  # include
+  include
 )
 include_directories(${ARMADILLO_INCLUDE_DIRS})
 
