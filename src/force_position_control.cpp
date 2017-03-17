@@ -106,7 +106,7 @@ int main(int argc, char **argv)
             }
         }
 
-        Eigen::MatrixXd M(14, 14); //matrice delle inerzie aumentata//
+        Eigen::MatrixXd M(n_joints*2, n_joints*2); //matrice delle inerzie aumentata//
 
         M.topLeftCorner(n_joints, n_joints) = Mleft;
         M.topRightCorner(n_joints, n_joints) = Eigen::MatrixXd::Zero(n_joints, n_joints);

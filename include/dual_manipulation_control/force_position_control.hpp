@@ -204,7 +204,7 @@ void compute_control()
 		if (i < n_dim_space)
 			msg_errors.data.push_back(pose_error_l(i));
 		else
-			msg_errors.data.push_back(pose_error_r(i - 6));
+			msg_errors.data.push_back(pose_error_r(i - n_dim_space));
 	}
 
 
