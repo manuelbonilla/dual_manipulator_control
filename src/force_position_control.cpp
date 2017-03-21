@@ -25,6 +25,8 @@ void activate_controller_cb( const std_msgs::Float64::ConstPtr msg)
         flag_run_ =  false;
     }
 
+    t_total = 0.0;
+
 }
 
 int main(int argc, char **argv)
@@ -68,16 +70,16 @@ int main(int argc, char **argv)
 
     ros::Time start, finish;
     float dt = 1.0 / 500.0;
-    ros::Rate rate(500);
+    ros::Rate rate( 1.0 / dt );
 
 
     int ccc = 0;
-    double t_total = 0.0;
+    t_total = 0.0;
     while (ros::ok() && flag_run_)
     {
         // ros::spinOnce();
+
         start = ros::Time::now();
-        t_total += dt;
 
         Eigen::MatrixXd Jleft(n_dim_space, n_joints);
         Eigen::MatrixXd Jright(n_dim_space, n_joints);
@@ -126,41 +128,45 @@ int main(int argc, char **argv)
         // pose_error_l = diff(x_ee_l, init_pose_l);
         // pose_error_r = diff(x_ee_r, init_pose_r);
 
-
-        pose_error_l.vel = x_ee_l.p - init_pose_l.p;
+        pose_error_l.vel = (x_ee_l.p - init_pose_l.p) * std::tanh(0.3 * t_total);
         pose_error_l.rot = 0.5 * (init_pose_l.M.UnitX() * x_ee_l.M.UnitX() +
                                   init_pose_l.M.UnitY() * x_ee_l.M.UnitY() +
                                   init_pose_l.M.UnitZ() * x_ee_l.M.UnitZ());
 
-        pose_error_r.vel = x_ee_r.p - init_pose_r.p;
+        pose_error_r.vel = (x_ee_r.p - init_pose_r.p) * std::tanh(0.3 * t_total);
         pose_error_r.rot = 0.5 * (init_pose_r.M.UnitX() * x_ee_r.M.UnitX() +
                                   init_pose_r.M.UnitY() * x_ee_r.M.UnitY() +
                                   init_pose_r.M.UnitZ() * x_ee_r.M.UnitZ());
 
 
         double kp_control;
-        nh.param<double>("/kp", kp_control , -30.0);
+        nh.param<double>("/kp", kp_control , -500.0);
         double kv_control;
-        nh.param<double>("/kv", kv_control , -0.002);
+        nh.param<double>("/kv", kv_control , -2.0);
         Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(n_dim_space * 2, 1);
+        double lambda = 0.5;
         for (int i = 0; i < n_dim_space; ++i)
         {
             delta_x(i, 0) =  pose_error_l(i);
             delta_x(i + n_dim_space, 0) = pose_error_r(i);
-            // if (i >= 3)
-            // {
-            //     delta_x(i, 0) =  pose_error_l(i) * 0.0;
-            //     delta_x(i + n_dim_space, 0) = pose_error_r(i) * 0.0;
-            // }
         }
 
         Eigen::MatrixXd Kx_ = Eigen::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
         Eigen::MatrixXd Dx_ = Eigen::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
 
 
+        for (int i = 0; i < 3; ++i)
+        {
+            Kx_(3 + i, 3 + i) = 0.01;
+            Kx_(9 + i, 9 + i) = 0.01;
+        }
 
         // Tau_A = M * qppdes - kp_control*qp + C /*+ G*/ ;
-        Tau_A = J.transpose() * (kp_control * Kx_ * delta_x + kv_control * Dx_ * J * qp);
+        Eigen::MatrixXd Er =  Eigen::MatrixXd::Zero(12, 1);
+        Er = (kp_control * Kx_ * delta_x + kv_control * Dx_ * J * qp);
+
+
+        Tau_A = J.transpose() * Er;
 
 
         Tau_C = Tau_A ;//+ Tau_E;
@@ -177,6 +183,7 @@ int main(int argc, char **argv)
         // publish_control();
 
         compute_control();
+        t_total += dt;
 
         rate.sleep();
         ros::spinOnce();
