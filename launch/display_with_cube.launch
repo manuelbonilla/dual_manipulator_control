@@ -17,6 +17,8 @@
 
     <!-- choose whether or not to start the full robot simulation -->
     <arg name="use_robot_sim" default="true"/>
+    <arg name="publish_frequency" default="500"/>
+    <param name="publish_frequency" value="$(arg publish_frequency)"/>
 
     <!-- LAUNCH IMPLEMENTATION -->
 
@@ -34,12 +36,13 @@
     <group if="$(arg use_joint_state_publisher)">
         <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
             <param name="use_gui" value="$(arg gui)"/>
+            <param name="rate" value="$(arg publish_frequency)"/>
             <!-- listens to each part -->
             <rosparam param="source_list">[/left_arm/joint_states,/left_hand/joint_states,/right_arm/joint_states,/right_hand/joint_states,/head/joint_states]</rosparam>
         </node>
     </group>
 
-    <param name="publish_frequency" value="100"/>
+    
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"  />
 
     <group if="$(arg use_rviz)">
