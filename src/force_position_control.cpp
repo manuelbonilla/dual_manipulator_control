@@ -140,9 +140,9 @@ int main(int argc, char **argv)
 
 
         double kp_control;
-        nh.param<double>("/kp", kp_control , -500.0);
+        nh.param<double>("/kp", kp_control , -1000.0);
         double kv_control;
-        nh.param<double>("/kv", kv_control , -2.0);
+        nh.param<double>("/kv", kv_control , -10.0);
         Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(n_dim_space * 2, 1);
         double lambda = 0.5;
         for (int i = 0; i < n_dim_space; ++i)
