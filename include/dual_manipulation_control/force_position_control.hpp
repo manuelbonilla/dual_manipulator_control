@@ -59,6 +59,7 @@ std::vector<double> tau_l, tau_r;
 
 Eigen::VectorXd xo;
 Eigen::VectorXd xpo;
+double t_total;
 
 int n_joints, n_dim_space;
 KDL::Frame x_ee_l, x_ee_l_last;
@@ -75,6 +76,7 @@ KDL::Frame init_pose_l, init_pose_r;
 
 bool first_time_joint_states;
 std::vector<int> joint_index;
+std::vector<double> tau_max;
 
 KDL::Twist pose_error_l;
 KDL::Twist pose_error_r;
@@ -165,25 +167,30 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
 void compute_control()
 {
 	//conti del paper
+	double tau_scale(0.8);
 
 	std_msgs::Float64MultiArray msg_tau_l, msg_tau_r;
 	for (int i = 0; i < n_joints; ++i)
 	{
-		if (std::abs(tau_l[i]) < 200 )
+		if (std::abs(tau_l[i]) < tau_max[i]*tau_scale )
 		{
 			msg_tau_l.data.push_back(tau_l[i]);
 		}
 		else
 		{
-			msg_tau_l.data.push_back(0);
+			double tau_sat = tau_max[i] * tau_scale;
+			std::copysign(tau_sat, tau_l[i]);
+			msg_tau_l.data.push_back(tau_sat);
 		}
-		if (std::abs(tau_r[i]) < 200 )
+		if (std::abs(tau_r[i]) < tau_max[i]*tau_scale )
 		{
 			msg_tau_r.data.push_back(tau_r[i]);
 		}
 		else
 		{
-			msg_tau_r.data.push_back(0);
+			double tau_sat = tau_max[i] * tau_scale;
+			std::copysign(tau_sat, tau_r[i]);
+			msg_tau_r.data.push_back(tau_sat);;
 		}
 	}
 
@@ -199,7 +206,7 @@ void compute_control()
 		q_l_feed.data.push_back(joint_msr_states_l.q(i));
 		q_r_feed.data.push_back(joint_msr_states_r.q(i));
 	}
-	for (int i = 0; i < n_dim_space*2; ++i)
+	for (int i = 0; i < n_dim_space * 2; ++i)
 	{
 		if (i < n_dim_space)
 			msg_errors.data.push_back(pose_error_l(i));
@@ -417,6 +424,8 @@ bool init_variables(ros::NodeHandle &nh)
 	//
 	J_l.resize(kdl_chain_l.getNrOfJoints());
 	J_r.resize(kdl_chain_r.getNrOfJoints());
+
+	tau_max = std::vector<double>({176.0, 176.0, 100.0, 100.0, 100.0, 38.0, 38.0});
 	return true;
 }
 
