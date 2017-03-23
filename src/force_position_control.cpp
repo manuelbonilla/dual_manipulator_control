@@ -98,6 +98,10 @@ int main(int argc, char **argv)
         J.bottomLeftCorner(n_dim_space, n_joints) = Eigen::MatrixXd::Zero(n_dim_space, n_joints);
         J.bottomRightCorner(n_dim_space, n_joints) = Jright;
 
+        Eigen::MatrixXd Jpinv(14,12);
+
+        pseudo_inverse(J,Jpinv);
+
         Eigen::MatrixXd Mleft(n_joints, n_joints);
         Eigen::MatrixXd Mright(n_joints, n_joints);
 
@@ -108,6 +112,10 @@ int main(int argc, char **argv)
             }
         }
 
+        Eigen::VectorXd C(14);
+
+        C << C_l(0),C_l(1),C_l(2),C_l(3),C_l(4),C_l(5),C_l(6),C_r(0),C_r(1),C_r(2),C_r(3),C_r(4),C_r(5),C_r(6);
+
         Eigen::MatrixXd M(n_joints * 2, n_joints * 2); //matrice delle inerzie aumentata//
 
         M.topLeftCorner(n_joints, n_joints) = Mleft;
@@ -115,58 +123,115 @@ int main(int argc, char **argv)
         M.bottomLeftCorner(n_joints, n_joints) = Eigen::MatrixXd::Zero(n_joints, n_joints);
         M.bottomRightCorner(n_joints, n_joints) = Mright;
 
+        Eigen::VectorXd r(6);
+
+        r << xo[0],xo[1],xo[2],xo[3],xo[4],xo[5];
+
+        Eigen::VectorXd q(n_joints * 2);
+
+        q << ql[0] , ql[1] , ql[2] , ql[3] , ql[4] , ql[5], ql[6] , qr[0] , qr[1] , qr[2] , qr[3] , qr[4] , qr[5] , qr[6] ;
+
         Eigen::VectorXd qp(n_joints * 2); //vettore aumentato delle velocità angolari di giunto//
 
         qp << qpl[0] , qpl[1] , qpl[2] , qpl[3] , qpl[4] , qpl[5], qpl[6] , qpr[0] , qpr[1] , qpr[2] , qpr[3] , qpr[4] , qpr[5] , qpr[6] ;
 
+        Eigen::VectorXd qpp_des(n_joints * 2);
+
+        qpp_des << 0,0,0,0,0,0,0,0,0,0,0,0,0,0;
 
         Eigen::VectorXd Tau_A(n_joints * 2);
         Eigen::VectorXd Tau_E(n_joints * 2);
         Eigen::VectorXd Tau_C(n_joints * 2);
 
+        Eigen::VectorXd err_q(n_joints * 2);
+        Eigen::VectorXd err_dq(n_joints * 2);
+        Eigen::VectorXd q_des(n_joints*2);
+        Eigen::VectorXd qp_des(n_joints*2);
+        Eigen::VectorXd r_aug(12);
+        Eigen::VectorXd rp_aug(12);
+        Eigen::VectorXd offset(12);
+
+        Eigen::MatrixXd Jpinv_dot(14,12);
+        Eigen::MatrixXd Jpinv_last(14,12);
+
+        if(first_step){
+
+            Jpinv_last = Jpinv;
+            first_step = 0;
+
+        }
+
+        Jpinv_dot = (Jpinv - Jpinv_last)/dt;
+
+        Eigen::VectorXd F(n_joints*2);
+
+        r_aug << xo[0],xo[1],xo[2],xo[3],xo[4],xo[5],xo[0],xo[1],xo[2],xo[3],xo[4],xo[5];
+        // r_aug << 1,0,1,0,0,0,1,0,1,0,0,0;
+
+        rp_aug << xpo[0],xpo[1],xpo[2],xpo[3],xpo[4],xpo[5],xpo[0],xpo[1],xpo[2],xpo[3],xpo[4],xpo[5];
+
+        F = Jpinv_dot*r_aug;
+
+        Eigen::VectorXd Flast(n_joints*2);
+
+        if(first_step){
+
+            Flast = F;
+            first_step = 0;
+
+        }
+
+        q_des = Jpinv*r_aug - (F - Flast)*dt;
+        qp_des = Jpinv*rp_aug;
+
+        err_q = q_des - q;
+        err_dq = qp_des - qp;
+
+        Eigen::MatrixXd K = Eigen::MatrixXd::Identity(14,14);
+
+        Tau_A = M*qpp_des + C - 100*K*err_q - 0.001*K*err_dq;
 
         // pose_error_l = diff(x_ee_l, init_pose_l);
         // pose_error_r = diff(x_ee_r, init_pose_r);
 
-        pose_error_l.vel = (x_ee_l.p - init_pose_l.p) * std::tanh(0.3 * t_total);
-        pose_error_l.rot = 0.5 * (init_pose_l.M.UnitX() * x_ee_l.M.UnitX() +
-                                  init_pose_l.M.UnitY() * x_ee_l.M.UnitY() +
-                                  init_pose_l.M.UnitZ() * x_ee_l.M.UnitZ());
+        // pose_error_l.vel = (x_ee_l.p - init_pose_l.p) * std::tanh(0.3 * t_total);
+        // pose_error_l.rot = 0.5 * (init_pose_l.M.UnitX() * x_ee_l.M.UnitX() +
+        //                           init_pose_l.M.UnitY() * x_ee_l.M.UnitY() +
+        //                           init_pose_l.M.UnitZ() * x_ee_l.M.UnitZ());
 
-        pose_error_r.vel = (x_ee_r.p - init_pose_r.p) * std::tanh(0.3 * t_total);
-        pose_error_r.rot = 0.5 * (init_pose_r.M.UnitX() * x_ee_r.M.UnitX() +
-                                  init_pose_r.M.UnitY() * x_ee_r.M.UnitY() +
-                                  init_pose_r.M.UnitZ() * x_ee_r.M.UnitZ());
+        // pose_error_r.vel = (x_ee_r.p - init_pose_r.p) * std::tanh(0.3 * t_total);
+        // pose_error_r.rot = 0.5 * (init_pose_r.M.UnitX() * x_ee_r.M.UnitX() +
+        //                           init_pose_r.M.UnitY() * x_ee_r.M.UnitY() +
+        //                           init_pose_r.M.UnitZ() * x_ee_r.M.UnitZ());
 
+        // double kp_control;
+        // nh.param<double>("/kp", kp_control , -1000.0);
+        // double kv_control;
+        // nh.param<double>("/kv", kv_control , -10.0);
+        // Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(n_dim_space * 2, 1);
+        // double lambda = 0.5;
+        // for (int i = 0; i < n_dim_space; ++i)
+        // {
+        //     delta_x(i, 0) =  pose_error_l(i);
+        //     delta_x(i + n_dim_space, 0) = pose_error_r(i);
+        // }
 
-        double kp_control;
-        nh.param<double>("/kp", kp_control , -1000.0);
-        double kv_control;
-        nh.param<double>("/kv", kv_control , -10.0);
-        Eigen::MatrixXd delta_x = Eigen::MatrixXd::Zero(n_dim_space * 2, 1);
-        double lambda = 0.5;
-        for (int i = 0; i < n_dim_space; ++i)
-        {
-            delta_x(i, 0) =  pose_error_l(i);
-            delta_x(i + n_dim_space, 0) = pose_error_r(i);
-        }
-
-        Eigen::MatrixXd Kx_ = Eigen::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
-        Eigen::MatrixXd Dx_ = Eigen::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
-
-
-        for (int i = 0; i < 3; ++i)
-        {
-            Kx_(3 + i, 3 + i) = 0.01;
-            Kx_(9 + i, 9 + i) = 0.01;
-        }
-
-        // Tau_A = M * qppdes - kp_control*qp + C /*+ G*/ ;
-        Eigen::MatrixXd Er =  Eigen::MatrixXd::Zero(12, 1);
-        Er = (kp_control * Kx_ * delta_x + kv_control * Dx_ * J * qp);
+        // Eigen::MatrixXd Kx_ = Eige+::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
+        // Eigen::MatrixXd Dx_ = Eigen::MatrixXd::Identity(n_dim_space * 2, n_dim_space * 2);
 
 
-        Tau_A = J.transpose() * Er;
+        // for (int i = 0; i < 3; ++i)
+        // {
+        //     Kx_(3 + i, 3 + i) = 0.01;
+        //     Kx_(9 + i, 9 + i) = 0.01;
+        // }
+
+        // // Tau_A = M * qppdes - kp_control*qp + C /*+ G*/ ;
+        // Eigen::MatrixXd Er =  Eigen::MatrixXd::Zero(12, 1);
+        // Er = (kp_control * Kx_ * delta_x + kv_control * Dx_ * J * qp);
+
+        // Tau_A = J.transpose() * Er;
+
 
 
         Tau_C = Tau_A ;//+ Tau_E;

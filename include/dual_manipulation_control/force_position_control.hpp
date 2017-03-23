@@ -339,26 +339,26 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 
 	xo[0] = msg->pose[sphere_index].position.x;
 	xo[1] = msg->pose[sphere_index].position.y;
-	xo[2] = msg->pose[sphere_index].position.z - 1.0; // table height;
+	xo[2] = msg->pose[sphere_index].position.z - 0.0; // table height;
 
 	qxo[0] = msg->pose[sphere_index].orientation.x;
 	qxo[1] = msg->pose[sphere_index].orientation.y;
 	qxo[2] = msg->pose[sphere_index].orientation.z;
 	qxo[3] = msg->pose[sphere_index].orientation.w;
 
-	// if ((2 * (qxo[0]*qxo[1] + qxo[2]*qxo[3])) >= 0) {
+	if ((2 * (qxo[0]*qxo[1] + qxo[2]*qxo[3])) >= 0) {
 	xo[3] = atan(2 * (qxo[0] * qxo[1] + qxo[2] * qxo[3]) / (1 - 2 * (qxo[1] * qxo[1] + qxo[2] * qxo[2])));
-	// } else {
-	//     xo[3] = atan(2 * (qxo[0] * qxo[1] + qxo[2] * qxo[3]) / (1 - 2 * (qxo[1] * qxo[1] + qxo[2] * qxo[2]))) + 3.14;
-	// }
+	} else {
+	    xo[3] = atan(2 * (qxo[0] * qxo[1] + qxo[2] * qxo[3]) / (1 - 2 * (qxo[1] * qxo[1] + qxo[2] * qxo[2]))) + 3.14;
+	}
 
 	xo[4] = asin(2 * (qxo[0] * qxo[2] - qxo[3] * qxo[1]));
 
-	// if ((2 * (qxo[0]*qxo[3] + qxo[1]*qxo[2])) >= 0) {
+	if ((2 * (qxo[0]*qxo[3] + qxo[1]*qxo[2])) >= 0) {
 	xo[5] = atan(2 * (qxo[0] * qxo[3] + qxo[1] * qxo[2]) / (1 - 2 * (qxo[2] * qxo[2] + qxo[3] * qxo[3])));
-	// } else {
-	//     xo[5] = atan(2 * (qxo[0] * qxo[3] + qxo[1] * qxo[2]) / (1 - 2 * (qxo[2] * qxo[2] + qxo[3] * qxo[3]))) + 3.14;
-	// }
+	} else {
+	    xo[5] = atan(2 * (qxo[0] * qxo[3] + qxo[1] * qxo[2]) / (1 - 2 * (qxo[2] * qxo[2] + qxo[3] * qxo[3]))) + 3.14;
+	}
 
 	xpo(0) = msg->twist[sphere_index].linear.x;
 	xpo(1) = msg->twist[sphere_index].linear.y;
