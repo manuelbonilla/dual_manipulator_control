@@ -31,6 +31,9 @@
 #include <boost/scoped_ptr.hpp>
 #include <armadillo>
 
+#include <iostream>
+#include <cmath>
+
 int first_step, cmd_flag_, first_time_link_states, sphere_index;
 
 boost::scoped_ptr<KDL::ChainJntToJacSolver> jnt_to_jac_solver_l;
@@ -87,17 +90,29 @@ bool flag_run_ = false;
 
 void pseudo_inverse(const Eigen::MatrixXd &M_, Eigen::MatrixXd &M_pinv_, bool damped = true)
 {
-	double lambda_ = damped ? 0.02 : 0.0;
+  double lambda_max = damped ? 1.0e-3 : 0.0;
 
-	Eigen::JacobiSVD<Eigen::MatrixXd> svd(M_, Eigen::ComputeFullU | Eigen::ComputeFullV);
-	Eigen::JacobiSVD<Eigen::MatrixXd>::SingularValuesType sing_vals_ = svd.singularValues();
-	Eigen::MatrixXd S_ = M_;   // copying the dimensions of M_, its content is not needed.
-	S_.setZero();
+  Eigen::JacobiSVD<Eigen::MatrixXd>::SingularValuesType sing_vals_;
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(M_, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  sing_vals_ = svd.singularValues();
+  Eigen::MatrixXd S_ = M_; // copying the dimensions of M_, its content is not needed.
 
-	for (int i = 0; i < sing_vals_.size(); i++)
-		S_(i, i) = (sing_vals_(i)) / (sing_vals_(i) * sing_vals_(i) + lambda_ * lambda_);
+  double lambda_quad = 0;
+  double epsilon = 1e-4; //
 
-	M_pinv_ = Eigen::MatrixXd(svd.matrixV() * S_.transpose() * svd.matrixU().transpose());
+  if ( sing_vals_(sing_vals_.size()-1) < epsilon )
+  {
+    lambda_quad = ( 1 - std::pow( (sing_vals_(sing_vals_.size()-1) / epsilon), 2) ) * std::pow(lambda_max, 2);
+  }
+
+  S_.setZero();
+
+  for (int i = 0; i < sing_vals_.size(); i++)
+  {
+    S_(i, i) = (sing_vals_(i)) / (sing_vals_(i) * sing_vals_(i) + lambda_quad);
+  }
+
+  M_pinv_ = Eigen::MatrixXd(svd.matrixV() * S_.transpose() * svd.matrixU().transpose());
 }
 
 void get_joint_index(const sensor_msgs::JointState::ConstPtr msg)
@@ -164,6 +179,61 @@ void get_states(const sensor_msgs::JointState::ConstPtr msg)
 	// flag_run_ = true;
 }
 
+void get_statesr(const sensor_msgs::JointState::ConstPtr msg)
+{
+
+	std::vector<double> index = {0,1,6,2,3,4,5};
+	for (int i = 0; i < n_joints; i++)
+	{
+
+		qr[i] = msg->position[index[i]];
+		qpr[i] = msg->velocity[index[i]];
+		qppr[i] = msg->effort[index[i]] * 0.;
+		joint_msr_states_r.q(i) = qr[i];
+		joint_msr_states_r.qdot(i) = qpr[i];
+	}
+
+
+	fk_pos_solver_r->JntToCart(joint_msr_states_r.q, x_ee_r);
+
+	/* solver for dinamics*/
+
+	id_solver_r->JntToMass(joint_msr_states_r.q, M_r);
+	id_solver_r->JntToCoriolis(joint_msr_states_r.q, joint_msr_states_r.qdot, C_r);
+	jnt_to_jac_solver_r->JntToJac(joint_msr_states_r.q, J_r);
+	id_solver_r->JntToGravity(joint_msr_states_r.q, G_r);
+	// compute
+	// flag_run_ = true;
+}
+
+
+void get_statesl(const sensor_msgs::JointState::ConstPtr msg)
+{
+
+	std::vector<double> index = {0,1,6,2,3,4,5};
+	for (int i = 0; i < n_joints; i++)
+	{
+
+		ql[i] = msg->position[index[i]];
+		qpl[i] = msg->velocity[index[i]];
+		qppl[i] = msg->effort[index[i]] * 0.;
+		joint_msr_states_l.q(i) = ql[i];
+		joint_msr_states_l.qdot(i) = qpl[i];
+	}
+
+
+	fk_pos_solver_l->JntToCart(joint_msr_states_l.q, x_ee_l);
+
+	/* solver for dinamics*/
+
+	id_solver_l->JntToMass(joint_msr_states_l.q, M_l);
+	id_solver_l->JntToCoriolis(joint_msr_states_l.q, joint_msr_states_l.qdot, C_l);
+	jnt_to_jac_solver_l->JntToJac(joint_msr_states_l.q, J_l);
+	id_solver_l->JntToGravity(joint_msr_states_l.q, G_l);
+	// compute
+	// flag_run_ = true;
+}
+
 void compute_control()
 {
 	//conti del paper
@@ -178,9 +248,12 @@ void compute_control()
 		}
 		else
 		{
-			double tau_sat = tau_max[i] * tau_scale;
-			std::copysign(tau_sat, tau_l[i]);
-			msg_tau_l.data.push_back(tau_sat);
+			// double tau_sat = tau_max[i] * tau_scale;
+			// std::copysign(tau_sat, tau_l[i]);
+			if (tau_l[i] < 0)
+				msg_tau_l.data.push_back(-tau_max[i] * tau_scale);
+			else
+				msg_tau_l.data.push_back(tau_max[i] * tau_scale);
 		}
 		if (std::abs(tau_r[i]) < tau_max[i]*tau_scale )
 		{
@@ -188,9 +261,10 @@ void compute_control()
 		}
 		else
 		{
-			double tau_sat = tau_max[i] * tau_scale;
-			std::copysign(tau_sat, tau_r[i]);
-			msg_tau_r.data.push_back(tau_sat);;
+			if (tau_r[i] < 0)
+				msg_tau_r.data.push_back(-tau_max[i] * tau_scale);
+			else
+				msg_tau_r.data.push_back(tau_max[i] * tau_scale);
 		}
 	}
 
@@ -339,7 +413,7 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
 
 	xo[0] = msg->pose[sphere_index].position.x;
 	xo[1] = msg->pose[sphere_index].position.y;
-	xo[2] = msg->pose[sphere_index].position.z - 0.0; // table height;
+	xo[2] = msg->pose[sphere_index].position.z - 1.0; // table height;
 
 	qxo[0] = msg->pose[sphere_index].orientation.x;
 	qxo[1] = msg->pose[sphere_index].orientation.y;

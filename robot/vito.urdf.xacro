@@ -64,32 +64,33 @@
     <origin xyz="0 0 0" rpy="0 0 ${-pi}"/>
   </xacro:soft_hand>
  -->
-
-
+<!-- 
+  <xacro:property name="mass_sphere" value="1"/>
+  <xacro:property name="radius_sphere" value="0.1"/>
   <link name="ft_surface_right">
       <inertial>
         <origin xyz="0 0 0.0" rpy="0 0 0"/>
-        <mass value="1"/>
-        <inertia ixx="100"  ixy="0"  ixz="0" iyy="100" iyz="0" izz="100" />
+        <mass value="${mass_sphere}"/>
+        <inertia ixx="${2 * mass_sphere * radius_sphere * radius_sphere / 5}"  ixy="0"  ixz="0" iyy="${2 * mass_sphere * radius_sphere * radius_sphere / 5}" iyz="0" izz="${2 * mass_sphere * radius_sphere * radius_sphere / 5}" />
       </inertial>
       <visual>
-        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="0.001" />
+          <sphere radius="${radius_sphere}" />
         </geometry>
       </visual>
 
       <collision>
-        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="0.001" />
+          <sphere radius="${radius_sphere}" />
         </geometry>
       </collision>
     </link>
 
 
    <joint name="ft_joint_sensor_right" type="fixed">
-    <origin xyz="-0.030 0.000 0.192" rpy="0.0 ${-pi / 2.0} 0.0"/>
+    <origin xyz="0 0 0" rpy="0.0 0.0 0.0"/>
     <parent link="right_arm_7_link" />
     <child link="ft_surface_right" />
   </joint>
@@ -114,27 +115,27 @@
   <link name="ft_surface_left">
       <inertial>
         <origin xyz="0 0 0.0" rpy="0 0 0"/>
-        <mass value="1"/>
-        <inertia ixx="100"  ixy="0"  ixz="0" iyy="100" iyz="0" izz="100" />
+        <mass value="${mass_sphere}"/>
+        <inertia ixx="${2 * mass_sphere * radius_sphere * radius_sphere / 5}"  ixy="0"  ixz="0" iyy="${2 * mass_sphere * radius_sphere * radius_sphere / 5}" iyz="0" izz="${2 * mass_sphere * radius_sphere * radius_sphere / 5}" />
       </inertial>
       <visual>
-        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="0.001" />
+          <sphere radius="${radius_sphere}" />
         </geometry>
       </visual>
 
       <collision>
-        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="0.001" />
+          <sphere radius="${radius_sphere}" />
         </geometry>
       </collision>
     </link>
 
 
    <joint name="ft_joint_sensor_left" type="fixed">
-    <origin xyz="-0.030 0.000 0.192" rpy="0.0 ${-pi / 2.0} 0.0"/>
+    <origin xyz="0 0 0" rpy="0.0 0.0 0.0"/>
     <parent link="left_arm_7_link" />
     <child link="ft_surface_left" />
   </joint>
@@ -154,6 +155,6 @@
     <gazebo reference="ft_joint_sensor_left">
       <provideFeedback>true</provideFeedback>
       <disableFixedJointLumping>true</disableFixedJointLumping>
-    </gazebo>
+    </gazebo> -->
 
 </robot>
