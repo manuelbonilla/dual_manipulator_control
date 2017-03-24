@@ -7,6 +7,7 @@
   <xacro:include filename="$(find vito_description)/model/table.urdf.xacro"/>
   <xacro:include filename="$(find vito_description)/model/materials.urdf"/>
   <xacro:include filename="$(find lwr_description)/model/kuka_lwr.urdf.xacro"/>
+  <xacro:include filename="$(find soft_hand_description)/model/soft_hand.urdf.xacro"/>
     
   <link name="world" />
   <link name="vito_anchor" />
@@ -48,9 +49,111 @@
     <origin xyz="-0.165 -0.1085854 0.390" rpy="1.5707963267948966 0.5235987010713441 -0.5235990737060282"/>
   </xacro:kuka_lwr>
 
+  <!-- LEFT SOFTHAND -->
+<!--   <xacro:soft_hand parent="left_arm_7_link" name="left_hand" left="true" withAdaptiveTransmission="true" useMimicTag="$(arg use_mimic_tag)">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:soft_hand> -->
+
   <!-- RIGHT ARM -->
   <xacro:kuka_lwr name="right_arm" parent="vito_anchor">
     <origin xyz="-0.165 0.10858 0.390" rpy="-1.5707963267948966 -0.5235987010713441 0.5235990737060282"/>
   </xacro:kuka_lwr>
+
+  <!-- RIGHT SOFTHAND -->
+<!--   <xacro:soft_hand parent="right_arm_7_link" name="right_hand" left="false" withAdaptiveTransmission="true" useMimicTag="$(arg use_mimic_tag)">
+    <origin xyz="0 0 0" rpy="0 0 ${-pi}"/>
+  </xacro:soft_hand>
+ -->
+
+
+  <link name="ft_surface_right">
+      <inertial>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
+        <mass value="1"/>
+        <inertia ixx="100"  ixy="0"  ixz="0" iyy="100" iyz="0" izz="100" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.001" />
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.001" />
+        </geometry>
+      </collision>
+    </link>
+
+
+   <joint name="ft_joint_sensor_right" type="fixed">
+    <origin xyz="-0.030 0.000 0.192" rpy="0.0 ${-pi / 2.0} 0.0"/>
+    <parent link="right_arm_7_link" />
+    <child link="ft_surface_right" />
+  </joint>
+  <gazebo reference="ft_surface_right">
+    <gravity>true</gravity>
+  </gazebo>
+
+
+    <gazebo>
+      <plugin name="force_sensor" filename="libgazebo_ros_ft_sensor.so">
+        <updateRate>100.0</updateRate>
+        <topicName>ft_sensor_topic</topicName>
+        <jointName>ft_joint_sensor_right</jointName>
+      </plugin>
+    </gazebo>
+
+    <gazebo reference="ft_joint_sensor_right">
+      <provideFeedback>true</provideFeedback>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+  <link name="ft_surface_left">
+      <inertial>
+        <origin xyz="0 0 0.0" rpy="0 0 0"/>
+        <mass value="1"/>
+        <inertia ixx="100"  ixy="0"  ixz="0" iyy="100" iyz="0" izz="100" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.001" />
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="0.001" />
+        </geometry>
+      </collision>
+    </link>
+
+
+   <joint name="ft_joint_sensor_left" type="fixed">
+    <origin xyz="-0.030 0.000 0.192" rpy="0.0 ${-pi / 2.0} 0.0"/>
+    <parent link="left_arm_7_link" />
+    <child link="ft_surface_left" />
+  </joint>
+  <gazebo reference="ft_surface_left">
+    <gravity>true</gravity>
+  </gazebo>
+
+
+    <gazebo>
+      <plugin name="force_sensor" filename="libgazebo_ros_ft_sensor.so">
+        <updateRate>100.0</updateRate>
+        <topicName>ft_sensor_topic</topicName>
+        <jointName>ft_joint_sensor_left</jointName>
+      </plugin>
+    </gazebo>
+
+    <gazebo reference="ft_joint_sensor_left">
+      <provideFeedback>true</provideFeedback>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
 
 </robot>
