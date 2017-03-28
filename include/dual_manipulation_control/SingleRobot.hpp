@@ -59,7 +59,7 @@ private:
     Eigen::MatrixXf M; //Inertia matrix
     Eigen::VectorXf C;   //Coriolis and Gravitational matrices
     Eigen::VectorXf G;
-    Eigen::VectorXf J_;
+    Eigen::MatrixXf J_;
     int n_joints;
     std::string name_space;
     KDL::Frame x_des;
@@ -90,6 +90,7 @@ bool Kuka_LWR::init_robot(std::string name_in, KDL::Chain chain, double sampling
 
     C =  Eigen::VectorXf::Zero(n_joints);
     M =  Eigen::MatrixXf::Zero(n_joints, n_joints);
+    J_ = Eigen::MatrixXf::Zero(6,n_joints);
 
     KDL::Vector gravity;
     jnt_to_jac_solver.reset(new KDL::ChainJntToJacSolver(chain));

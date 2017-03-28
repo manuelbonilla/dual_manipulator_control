@@ -11,7 +11,7 @@ std::vector<float> xo;
 Eigen::VectorXf xpo;
 int first_time_link_states;
 int sphere_index;
-Eigen::VectorXf qxo;
+std::vector<float> qxo;
 
 
 void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
@@ -107,9 +107,14 @@ int main(int argc, char **argv)
     robotl.init_robot("left_arm", arm_chainl.getKDLChain(), 1. / spin_rate);
 
     xo.resize(6);
+    xo = std::vector<float>(6,0);
+    qxo.resize(4);
+    qxo = std::vector<float>(4,0);
+    qxo[3] = 1.;
+
     xpo = Eigen::VectorXf::Zero(6);
-    qxo = Eigen::VectorXf::Zero(4);
-    qxo(3) = 1.;
+    // qxo = Eigen::VectorXf::Zero(4);
+    // qxo(3) = 1.;
 
     ros::Publisher pub_tau = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/additional_torque", 0);
     ros::Publisher pub_command = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/command", 0);
@@ -168,10 +173,10 @@ int main(int argc, char **argv)
     }
 
     KDL::Frame x_des, x;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo(0), qxo(1), qxo(2), qxo(3)), KDL::Vector(xo[0], xo[1] + 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo[0], qxo[1], qxo[2], qxo[3]), KDL::Vector(xo[0], xo[1] + 0.15, xo[2]));
     robotr.setXReference(x_des);
     std::cout << "right" << std::endl << x_des << std::endl;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo(0), qxo(1), qxo(2), qxo(3)), KDL::Vector(xo[0], xo[1] - 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo[0], qxo[1], qxo[2], qxo[3]), KDL::Vector(xo[0], xo[1] - 0.15, xo[2]));
     robotl.setXReference(x_des);
     std::cout << "left" << std::endl << x_des << std::endl;
     while (ros::ok())
