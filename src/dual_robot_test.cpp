@@ -178,10 +178,10 @@ int main(int argc, char **argv)
     }
 
     KDL::Frame x_des, x;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo[0], qxo[1], qxo[2], qxo[3]), KDL::Vector(xo[0], xo[1] + 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] + 0.15/2., xo[2]));
     robotr.setXReference(x_des);
     std::cout << "right" << std::endl << x_des << std::endl;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(qxo[0], qxo[1], qxo[2], qxo[3]), KDL::Vector(xo[0], xo[1] - 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] - 0.15/2., xo[2]));
     robotl.setXReference(x_des);
     std::cout << "left" << std::endl << x_des << std::endl;
     while (ros::ok())
@@ -210,10 +210,6 @@ int main(int argc, char **argv)
         ros::spinOnce();
         rate.sleep();
     }
-
-
-
-
 
     pub_tau.publish(zero);
     ros::spinOnce();
