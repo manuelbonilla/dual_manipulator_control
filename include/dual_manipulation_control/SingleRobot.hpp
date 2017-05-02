@@ -47,6 +47,7 @@ public:
     Eigen::MatrixXf getJacobian() {return J_;};
     Eigen::MatrixXf getM() {return M;};
     Eigen::VectorXf getC() {return C;};
+    Eigen::VectorXf getErrors() {return error_q;};
 
 private:
     Eigen::VectorXf q, qp, qpp, tau, error_q, error_qp, q_ref, qp_ref, qpp_ref;
@@ -129,6 +130,8 @@ void Kuka_LWR::computeControl()
 {
     computeReferences(q_ref, qp_ref, qpp_ref);
     tau = -300. * (q - q_ref) - 1. * (qp - qp_ref);
+
+    error_q = q - q_ref;
 }
 
 void Kuka_LWR::computeReferences(Eigen::VectorXf &q_local, Eigen::VectorXf &qp_local, Eigen::VectorXf &qpp_local )

@@ -121,6 +121,8 @@ int main(int argc, char **argv)
     ros::Publisher pub_damping = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/damping", 0);
     ros::Publisher pub_stiffness = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/stiffness", 0);
     ros::Publisher pub_activate_controller = node.advertise<std_msgs::Float64>("/activate_controller", 0);
+    ros::Publisher pub_error_r = node.advertise<std_msgs::Float64MultiArray>("/error_r", 0);
+    ros::Publisher pub_error_l = node.advertise<std_msgs::Float64MultiArray>("/error_l", 0);
     ros::Subscriber sub_joint_states = node.subscribe("/right_arm/joint_states", 100,  &Kuka_LWR::getJointSates, &robotr);
 
 
@@ -143,7 +145,7 @@ int main(int argc, char **argv)
     ros::spinOnce();
     rate.sleep();
 
-    std_msgs::Float64MultiArray zero, msg_add_torque, msg_add_torquel;
+    std_msgs::Float64MultiArray zero, msg_add_torque, msg_add_torquel, msg_error_r, msg_error_l;
     for (int i = 0; i < 7; ++i)
         zero.data.push_back(0.0);
 
@@ -167,6 +169,9 @@ int main(int argc, char **argv)
     robotl.initControl();
 
 
+    msg_error_r.data = zero.data;
+    msg_error_l.data = zero.data;
+
     while (first_time_link_states == 1)
     {
         ros::spinOnce();
@@ -185,15 +190,21 @@ int main(int argc, char **argv)
         robotl.computeControl();
         Eigen::VectorXf taur = robotr.getTau();
         Eigen::VectorXf taul = robotl.getTau();
+        Eigen::VectorXf errorr = robotr.getErrors();
+        Eigen::VectorXf errorl = robotl.getErrors();
         for (int i = 0; i < 7; ++i)
         {
             msg_add_torque.data[i] = taur(i);
             msg_add_torquel.data[i] = taul(i);
+            msg_error_r.data[i] = errorr(i);
+            msg_error_l.data[i] = errorl(i);
         }
         pub_damping.publish(zero);
         pub_stiffness.publish(zero);
         pub_tau.publish(msg_add_torque);
         pub_taul.publish(msg_add_torquel);
+        pub_error_r.publish(msg_error_r);
+        pub_error_l.publish(msg_error_l);
         pub_dampingl.publish(zero);
         pub_stiffnessl.publish(zero);
         ros::spinOnce();
