@@ -135,6 +135,7 @@
     <gazebo reference="ft_joint_sensor_right">
       <provideFeedback>true</provideFeedback>
       <disableFixedJointLumping>true</disableFixedJointLumping>
+      <implicitSpringDamper>true</implicitSpringDamper>
     </gazebo>
 
 <!--   <link name="ft_surface_left">
@@ -205,6 +206,7 @@
     <gazebo reference="ft_joint_sensor_left">
       <provideFeedback>true</provideFeedback>
       <disableFixedJointLumping>true</disableFixedJointLumping>
+      <implicitSpringDamper>true</implicitSpringDamper>
     </gazebo> 
 
 </robot>

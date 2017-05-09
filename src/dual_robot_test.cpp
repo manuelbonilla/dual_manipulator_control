@@ -100,17 +100,16 @@ int main(int argc, char **argv)
     robotl.init_robot("left_arm", arm_chainl.getKDLChain(), 1. / spin_rate);
 
     xo.resize(6);
-    xo = std::vector<float>(6,0);
+    xo = std::vector<float>(6, 0);
     qxo.resize(4);
-    qxo = std::vector<float>(4,0);
+    qxo = std::vector<float>(4, 0);
     qxo[3] = 1.;
 
     xpo = Eigen::VectorXf::Zero(6);
     // qxo = Eigen::VectorXf::Zero(4);
     // qxo(3) = 1.;
 
-    robotr.initControl();
-    robotl.initControl();
+
 
     ros::Publisher pub_tau = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/additional_torque", 100);
     ros::Publisher pub_command = node.advertise<std_msgs::Float64MultiArray>("/right_arm/joint_impedance_controller/command", 100);
@@ -119,6 +118,7 @@ int main(int argc, char **argv)
     ros::Publisher pub_activate_controller = node.advertise<std_msgs::Float64>("/activate_controller", 100);
     ros::Publisher pub_error_r = node.advertise<std_msgs::Float64MultiArray>("/error_r", 100);
     ros::Publisher pub_error_l = node.advertise<std_msgs::Float64MultiArray>("/error_l", 100);
+    ros::Publisher pub_error_rms = node.advertise<std_msgs::Float64>("/error_rms", 100);
     ros::Subscriber sub_joint_states = node.subscribe("/right_arm/joint_states", 100,  &Kuka_LWR::getJointSates, &robotr);
     ros::Subscriber sub_wrench_states_r = node.subscribe("/ft_sensor_topic_r", 100,  &Kuka_LWR::getForceTorqueStates, &robotr);
 
@@ -173,15 +173,23 @@ int main(int argc, char **argv)
     double trash = 0.01;
     double sumerror = 1000;
 
+    robotr.initControl();
+    robotl.initControl();
+
     KDL::Frame x_des, x;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] + 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] + 0.15, xo[2]));
     robotr.setXReference(x_des);
+    KDL::Frame x_des_2;
+    x_des_2 = KDL::Frame(KDL::Rotation::Quaternion(0., 0., 0., 1.0), KDL::Vector(xo[0] / 2, xo[1] + 2.0, 0.3));
+    // robotr.  (x_des_2);
     std::cout << "right" << std::endl << x_des << std::endl;
     Eigen::VectorXf fdr = Eigen::VectorXf::Zero(6);
     fdr(2) = 5;
     robotr.setWrenchDesired(fdr);
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] - 0.15, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] - 0.15, xo[2]));
     robotl.setXReference(x_des);
+    x_des_2 = KDL::Frame(KDL::Rotation::Quaternion(0., 0., 0., 1.0), KDL::Vector(xo[0] / 2, xo[1] - 2.0, 0.3));
+    // robotl.setX2Reference(x_des_2);
     Eigen::VectorXf fdl = Eigen::VectorXf::Zero(6);
     fdl(2) = -5;
     robotl.setWrenchDesired(fdl);
@@ -189,12 +197,13 @@ int main(int argc, char **argv)
 
     Kuka_LWR::gains_t gains;
     gains.ik_kp = 1.;
+    gains.ik_kp_2 = 1.;
     robotr.setGains(gains);
     robotl.setGains(gains);
 
+    std::cout << "Approaching 1: ";
     while (ros::ok() && std::abs(sumerror) > trash)
     {
-        std::cout << "do in first1: ";
         robotr.computeControl();
         robotl.computeControl();
         Eigen::VectorXf taur = robotr.getTau();
@@ -210,11 +219,14 @@ int main(int argc, char **argv)
             msg_error_r.data[i] = errorr(i);
             msg_error_l.data[i] = errorl(i);
         }
-        for (int i = 0; i<6;++i)
+        for (int i = 0; i < 6; ++i)
             errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
-        
+
         sumerror = errorlocal;
-        std::cout << sumerror << std::endl;
+        // std::cout << sumerror << std::endl;
+        std_msgs::Float64 msg_rms_error;
+        msg_rms_error.data = sumerror;
+        pub_error_rms.publish(msg_rms_error);
         pub_damping.publish(zero);
         pub_stiffness.publish(zero);
         pub_tau.publish(msg_add_torque);
@@ -230,15 +242,16 @@ int main(int argc, char **argv)
     sumerror = 1000;
 
     // KDL::Frame x_des, x;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] + 0.15/2, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] + 0.15 / 2. + 0.01, xo[2]));
     robotr.setXReference(x_des);
     std::cout << "right" << std::endl << x_des << std::endl;
-    x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.)/2., qxo[1], qxo[2], std::sqrt(2.)/2.), KDL::Vector(xo[0], xo[1] - 0.15/2, xo[2]));
+    x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] - 0.15 / 2. - 0.01, xo[2]));
     robotl.setXReference(x_des);
     std::cout << "left" << std::endl << x_des << std::endl;
-    
+    std::cout << "Approaching 2: ";
     while (ros::ok() && sumerror > trash )
     {
+
         robotr.computeControl();
         robotl.computeControl();
         Eigen::VectorXf taur = robotr.getTau();
@@ -254,11 +267,14 @@ int main(int argc, char **argv)
             msg_error_r.data[i] = errorr(i);
             msg_error_l.data[i] = errorl(i);
         }
-        for (int i = 0; i<6;++i)
+        for (int i = 0; i < 6; ++i)
             errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
-        
+
         sumerror = errorlocal;
-        std::cout << sumerror << std::endl;
+        // std::cout << sumerror << std::endl;
+        std_msgs::Float64 msg_rms_error;
+        msg_rms_error.data = sumerror;
+        pub_error_rms.publish(msg_rms_error);
         pub_damping.publish(zero);
         pub_stiffness.publish(zero);
         pub_tau.publish(msg_add_torque);

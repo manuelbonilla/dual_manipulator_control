@@ -64,3 +64,7 @@ target_link_libraries(single_robot_test ${catkin_LIBRARIES})
 add_executable(dual_robot_test src/dual_robot_test.cpp)
 add_dependencies(dual_robot_test ${PROJECT_NAME}_gencpp ${catkin_EXPORTED_TARGETS})
 target_link_libraries(dual_robot_test ${catkin_LIBRARIES}  ${GAZEBO_LIBRARIES} )
+
+add_executable(sensorized_object src/sensorized_object.cpp)
+add_dependencies(sensorized_object ${PROJECT_NAME}_gencpp ${catkin_EXPORTED_TARGETS})
+target_link_libraries(sensorized_object ${catkin_LIBRARIES}  ${GAZEBO_LIBRARIES} )
