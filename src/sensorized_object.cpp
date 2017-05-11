@@ -100,8 +100,6 @@ int main(int argc, char **argv)
     }
     robotl.init_robot("left_arm", arm_chainl.getKDLChain(), 1. / spin_rate);
 
-
-
     ros::Subscriber sub_joint_states = node.subscribe("/right_arm/joint_states", 100,  &Kuka_LWR::getJointSates, &robotr);
     ros::Subscriber sub_joint_statesl = node.subscribe("/left_arm/joint_states", 100,  &Kuka_LWR::getJointSates, &robotl);
     ros::Subscriber sub_get_obj_pos = node.subscribe("/gazebo/link_states", 100, &get_obj_pos);
@@ -123,11 +121,11 @@ int main(int argc, char **argv)
 
     x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] + 0.15 / 2., xo[2]));
     robotr.setXReference(x_des);
-    std::cout << "right" << std::endl << x_des << std::endl;
+    // std::cout << "right" << std::endl << x_des << std::endl;
     x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] - 0.15 / 2., xo[2]));
     robotl.setXReference(x_des);
-    std::cout << "left" << std::endl << x_des << std::endl;
-    std::cout << "Approaching 2: ";
+    // std::cout << "left" << std::endl << x_des << std::endl;
+    // std::cout << "Approaching 2: ";
 
     Eigen::MatrixXf K;
     K = Eigen::MatrixXf::Zero(6, 6); // contact stiffness
@@ -161,12 +159,20 @@ int main(int argc, char **argv)
 
         Eigen::MatrixXf d(4, 4);
         d = Eigen::MatrixXf::Identity(4, 4);
-        Eigen::MatrixXf a =  (d.block<1, 3>(0, 0) * T_7_c_r.block<1, 3>(0, 0).transpose());
+        Eigen::MatrixXf a(1,1);
+        a =  (d.block<3,1>(0, 0).transpose() * T_7_c_r.block<3,1>(0, 0));
         err_r(3) = 0.5 * a(0, 0);
-        a =  (d.block<1, 3>(0, 1) * T_7_c_r.block<1, 3>(0, 1).transpose());
+        a =  (d.block<3,1>(0, 1).transpose() * T_7_c_r.block<3,1>(0, 1));
         err_r(4) = 0.5 * a(0, 0);
-        a =  (d.block<1, 3>(0, 2) * T_7_c_r.block<1, 3>(0, 2).transpose());
+        a =  (d.block<3,1>(0, 2).transpose() * T_7_c_r.block<3,1>(0, 2));
         err_r(5) = 0.5 * a(0, 0);
+
+        a =  (d.block<3,1>(0, 0).transpose() * T_7_c_l.block<3,1>(0, 0));
+        err_l(3) = 0.5 * a(0, 0);
+        a =  (d.block<3,1>(0, 1).transpose() * T_7_c_l.block<3,1>(0, 1));
+        err_l(4) = 0.5 * a(0, 0);
+        a =  (d.block<3,1>(0, 2).transpose() * T_7_c_l.block<3,1>(0, 2));
+        err_l(5) = 0.5 * a(0, 0);
 
         float n_r = std::sqrt(err_r(0) * err_r(0) + err_r(1) * err_r(1) + err_r(2) * err_r(2) );
         float n_l = std::sqrt(err_l(0) * err_l(0) + err_l(1) * err_l(1) + err_l(2) * err_l(2) );
@@ -180,19 +186,16 @@ int main(int argc, char **argv)
         // std::cout << "n_r: " << n_r << " n_l: " << n_l << std::endl;
         // std::cout << "Object pose: " << xo[0] << ", " << xo[1] << ", " << xo[2] << std::endl;
         float force_threshold(0.05);
-        if (n_r <= force_threshold)
+       if (n_r <= force_threshold)
         {
             //compute force
             F_r = -K * err_r;
-
-
             //publish force
         }
         if (n_l <= force_threshold)
         {
             //compute force
             F_l = -K * err_l;
-
             //publish force
         }
 
@@ -207,7 +210,6 @@ int main(int argc, char **argv)
         msg_f_r.header.frame_id = "right_arm_7_link";
 
         pub_force_r.publish(msg_f_r);
-
 
         msg_f_l.wrench.force.x = F_l(0);
         msg_f_l.wrench.force.y = F_l(1);

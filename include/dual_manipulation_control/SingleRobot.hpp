@@ -39,7 +39,8 @@ public:
 
     bool init_robot(std::string name_in, KDL::Chain chain, double sampling_rate);
     void getJointSates(const sensor_msgs::JointState::ConstPtr msg);
-    void getForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg);
+    Eigen::VectorXf getForceTorqueStates(){return ft_m;};
+    void setForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg);
     void computeControl();
     void setReferences();
     Eigen::VectorXf getTau() {return tau;};
@@ -166,7 +167,7 @@ void Kuka_LWR::getJointSates(const sensor_msgs::JointState::ConstPtr msg)
 
 }
 
-void Kuka_LWR::getForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg)
+void Kuka_LWR::setForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg)
 {
     ft_m(0) = msg->wrench.force.x; /*Force measured in sensor frame*/
     ft_m(1) = msg->wrench.force.y;
@@ -255,7 +256,7 @@ void Kuka_LWR::computeControl()
     Eigen::VectorXf Fdes(6);
     Fdes << 0, 0, 0.1, 0, 0, 0;
 
-    tau = -300. * (q - q_ref) - 1. * (qp - qp_ref) + Jt * (k1 * (F - Fdes) /*+ k2*int_err_f*/);
+    tau = -300. * (q - q_ref) - 3. * (qp - qp_ref) + Jt * (k1 * (F - Fdes) /*+ k2*int_err_f*/);
 
     error_q = q - q_ref;
 }
@@ -287,7 +288,7 @@ void Kuka_LWR::computeReferences(Eigen::VectorXf &q_local, Eigen::VectorXf &qp_l
 
     KDL::JntSpaceInertiaMatrix M_l; //Inertia matrix
     KDL::JntArray C_l;   //Coriolis and Gravitational matrices
-
+ 
     M_l.resize(n_joints);
     C_l.resize(n_joints);
     for (int i = 0; i < n_joints; ++i)
