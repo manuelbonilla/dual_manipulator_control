@@ -181,7 +181,7 @@ int main(int argc, char **argv)
     robotr.setXReference(x_des);
     KDL::Frame x_des_2;
     x_des_2 = KDL::Frame(KDL::Rotation::Quaternion(0., 0., 0., 1.0), KDL::Vector(xo[0] / 2, xo[1] + 2.0, 0.3));
-    // robotr.  (x_des_2);
+    // robotr.setX2Reference(x_des_2);
     std::cout << "right" << std::endl << x_des << std::endl;
     Eigen::VectorXf fdr = Eigen::VectorXf::Zero(6);
     fdr(2) = 5;
@@ -250,53 +250,150 @@ int main(int argc, char **argv)
     std::cout << "left" << std::endl << x_des << std::endl;
     std::cout << "Approaching 2: ";
 
-    // float norm_left_force(0.);
-    // while (ros::ok() && norm_left_force < 3 )
-    // {
+    float norm_left_force(0.);
+    while (ros::ok() && norm_left_force < 3 )
+    {
 
-    //     robotr.computeControl();
-    //     robotl.computeControl();
-    //     Eigen::VectorXf taur = robotr.getTau();
-    //     Eigen::VectorXf taul = robotl.getTau();
-    //     Eigen::VectorXf errorr = robotr.getErrors();
-    //     Eigen::VectorXf errorl = robotl.getErrors();
-    //     // Eigen::VectorXf sumCart = robotr.getCartErr() + robotl.getCartErr();
-    //     float errorlocal = 0;
-    //     for (int i = 0; i < 7; ++i)
-    //     {
-    //         msg_add_torque.data[i] = taur(i);
-    //         msg_add_torquel.data[i] = taul(i);
-    //         msg_error_r.data[i] = errorr(i);
-    //         msg_error_l.data[i] = errorl(i);
-    //     }
-    //     // for (int i = 0; i < 6; ++i)
-    //     // errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
+        std::cout << "Waiting for force" << std::endl;
+        robotr.computeControl();
+        robotl.computeControl();
+        Eigen::VectorXf taur = robotr.getTau();
+        Eigen::VectorXf taul = robotl.getTau();
+        Eigen::VectorXf errorr = robotr.getErrors();
+        Eigen::VectorXf errorl = robotl.getErrors();
+        // Eigen::VectorXf sumCart = robotr.getCartErr() + robotl.getCartErr();
+        float errorlocal = 0;
+        for (int i = 0; i < 7; ++i)
+        {
+            msg_add_torque.data[i] = taur(i);
+            msg_add_torquel.data[i] = taul(i);
+            msg_error_r.data[i] = errorr(i);
+            msg_error_l.data[i] = errorl(i);
+        }
+        // for (int i = 0; i < 6; ++i)
+        // errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
 
-    //     // sumerror = errorlocal;
+        // sumerror = errorlocal;
 
-    //     Eigen::VectorXf force_right = robotr.getForceTorqueStates();
-    //     Eigen::VectorXf force_left = robotl.getForceTorqueStates();
+        Eigen::VectorXf force_right = robotr.getForceTorqueStates();
+        Eigen::VectorXf force_left = robotl.getForceTorqueStates();
 
-    //     norm_left_force = force_left.head(3).norm();
-    //     // std::cout << sumerror << std::endl;
-    //     std_msgs::Float64 msg_rms_error;
-    //     msg_rms_error.data = sumerror;
-    //     pub_error_rms.publish(msg_rms_error);
-    //     pub_damping.publish(zero);
-    //     pub_stiffness.publish(zero);
-    //     pub_tau.publish(msg_add_torque);
-    //     pub_taul.publish(msg_add_torquel);
-    //     pub_error_r.publish(msg_error_r);
-    //     pub_error_l.publish(msg_error_l);
-    //     pub_dampingl.publish(zero);
-    //     pub_stiffnessl.publish(zero);
-    //     ros::spinOnce();
-    //     rate.sleep();
-    // }
+        norm_left_force = force_left.head(3).norm();
+        // std::cout << sumerror << std::endl;
+        std_msgs::Float64 msg_rms_error;
+        msg_rms_error.data = sumerror;
+        pub_error_rms.publish(msg_rms_error);
+        pub_damping.publish(zero);
+        pub_stiffness.publish(zero);
+        pub_tau.publish(msg_add_torque);
+        pub_taul.publish(msg_add_torquel);
+        pub_error_r.publish(msg_error_r);
+        pub_error_l.publish(msg_error_l);
+        pub_dampingl.publish(zero);
+        pub_stiffnessl.publish(zero);
+        ros::spinOnce();
+        rate.sleep();
+    }
 
-    // robotl.enableForceControl(1.);
-    // robotr.enableForceControl(1.);
+    robotr.initControl();
+    robotl.initControl();
 
+
+
+    float time_local(0.);
+    while (ros::ok() time_local < 5)
+    {
+
+        std::cout << "Preparing for force control" << std::endl;
+        robotr.computeControl();
+        robotl.computeControl();
+        Eigen::VectorXf taur = robotr.getTau();
+        Eigen::VectorXf taul = robotl.getTau();
+        Eigen::VectorXf errorr = robotr.getErrors();
+        Eigen::VectorXf errorl = robotl.getErrors();
+        // Eigen::VectorXf sumCart = robotr.getCartErr() + robotl.getCartErr();
+        float errorlocal = 0;
+        for (int i = 0; i < 7; ++i)
+        {
+            msg_add_torque.data[i] = taur(i);
+            msg_add_torquel.data[i] = taul(i);
+            msg_error_r.data[i] = errorr(i);
+            msg_error_l.data[i] = errorl(i);
+        }
+        // for (int i = 0; i < 6; ++i)
+        // errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
+
+        // sumerror = errorlocal;
+
+        Eigen::VectorXf force_right = robotr.getForceTorqueStates();
+        Eigen::VectorXf force_left = robotl.getForceTorqueStates();
+
+        norm_left_force = force_left.head(3).norm();
+        // std::cout << sumerror << std::endl;
+        std_msgs::Float64 msg_rms_error;
+        msg_rms_error.data = sumerror;
+        pub_error_rms.publish(msg_rms_error);
+        pub_damping.publish(zero);
+        pub_stiffness.publish(zero);
+        pub_tau.publish(msg_add_torque);
+        pub_taul.publish(msg_add_torquel);
+        pub_error_r.publish(msg_error_r);
+        pub_error_l.publish(msg_error_l);
+        pub_dampingl.publish(zero);
+        pub_stiffnessl.publish(zero);
+        ros::spinOnce();
+        rate.sleep();
+        time_local +=  1./spin_rate;
+    }
+    robotl.enableForceControl(1.);
+    robotr.enableForceControl(1.);
+
+
+    norm_left_force = 0;
+    while (ros::ok() norm_left_force < 100)
+    {
+
+        std::cout << "doing force control" << std::endl;
+        robotr.computeControl();
+        robotl.computeControl();
+        Eigen::VectorXf taur = robotr.getTau();
+        Eigen::VectorXf taul = robotl.getTau();
+        Eigen::VectorXf errorr = robotr.getErrors();
+        Eigen::VectorXf errorl = robotl.getErrors();
+        // Eigen::VectorXf sumCart = robotr.getCartErr() + robotl.getCartErr();
+        float errorlocal = 0;
+        for (int i = 0; i < 7; ++i)
+        {
+            msg_add_torque.data[i] = taur(i);
+            msg_add_torquel.data[i] = taul(i);
+            msg_error_r.data[i] = errorr(i);
+            msg_error_l.data[i] = errorl(i);
+        }
+        // for (int i = 0; i < 6; ++i)
+        // errorlocal = errorlocal + std::abs(robotr.getCartErr()(i)) + std::abs(robotl.getCartErr()(i));
+
+        // sumerror = errorlocal;
+
+        Eigen::VectorXf force_right = robotr.getForceTorqueStates();
+        Eigen::VectorXf force_left = robotl.getForceTorqueStates();
+
+        norm_left_force = force_left.head(3).norm();
+        // std::cout << sumerror << std::endl;
+        std_msgs::Float64 msg_rms_error;
+        msg_rms_error.data = sumerror;
+        pub_error_rms.publish(msg_rms_error);
+        pub_damping.publish(zero);
+        pub_stiffness.publish(zero);
+        pub_tau.publish(msg_add_torque);
+        pub_taul.publish(msg_add_torquel);
+        pub_error_r.publish(msg_error_r);
+        pub_error_l.publish(msg_error_l);
+        pub_dampingl.publish(zero);
+        pub_stiffnessl.publish(zero);
+        ros::spinOnce();
+        rate.sleep();
+        time_local +=  1./spin_rate;
+    }
 
     pub_tau.publish(zero);
     ros::spinOnce();
