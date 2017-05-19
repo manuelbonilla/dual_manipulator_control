@@ -279,7 +279,7 @@ void Kuka_LWR::computeControl()
     // integrale =  1*k1*int_err_f;
     // std::cout << "integrale" << integrale.transpose() <<std::endl;
 
-    tau = -300. * (q - q_ref) - 1. * (qp - qp_ref) + Jt * (k1 * (ForceError) + k_i*i_F_err);
+    tau = -300. * (q - q_ref) - 1. * (qp - qp_ref) - Jt * (k1 * (ForceError) + k_i*i_F_err);
 
     // std::cout << "F" << F.transpose() << std::endl;  
     // std::cout << "Fdes" << Fdes.transpose() << std::endl;

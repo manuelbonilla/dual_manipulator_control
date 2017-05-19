@@ -184,7 +184,7 @@ int main(int argc, char **argv)
         // std::cout << "Object pose: " << xo[0] << ", " << xo[1] << ", " << xo[2] << std::endl;
 
         float force_threshold(0.05);
-        if (n_r <= force_threshold)
+        if (n_r <= force_threshold )
         {
             //compute force
             F_r = -K * err_r;
