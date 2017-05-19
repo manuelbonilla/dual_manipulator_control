@@ -64,9 +64,6 @@ void get_obj_pos( const gazebo_msgs::LinkStates::ConstPtr msg)
     xpo(3) = msg->twist[sphere_index].angular.x;
     xpo(4) = msg->twist[sphere_index].angular.y;
     xpo(5) = msg->twist[sphere_index].angular.z;
-    // std::cout << "Object Pose   ";
-    // std::cout << xo(i) << " ";
-    // std::cout << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -135,10 +132,10 @@ int main(int argc, char **argv)
     K(3, 3) = stiffness * scale_t; K(4, 4) = stiffness * scale_t; K(5, 5) = stiffness * scale_t;
     while (ros::ok())
     {
-        x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] + 0.15 / 2. + 0.02, xo[2]));
+        x_des = KDL::Frame(KDL::Rotation::Quaternion(std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] + 0.15 / 2. + 0.04, xo[2]));
         robotr.setXReference(x_des);
         // std::cout << "right" << std::endl << x_des << std::endl;
-        x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] - 0.15 / 2. - 0.02,  xo[2]));
+        x_des = KDL::Frame(KDL::Rotation::Quaternion(-std::sqrt(2.) / 2., qxo[1], qxo[2], std::sqrt(2.) / 2.), KDL::Vector(xo[0], xo[1] - 0.15 / 2. - 0.04,  xo[2]));
         robotl.setXReference(x_des);
         // std::cout << "left" << std::endl << x_des << std::endl;
         // std::cout << "Approaching 2: ";
@@ -174,8 +171,8 @@ int main(int argc, char **argv)
         a =  (d.block<3,1>(0, 2).transpose() * T_7_c_l.block<3,1>(0, 2));
         err_l(5) = 0.5 * a(0, 0);
 
-        float n_r = std::sqrt(err_r(0) * err_r(0) + err_r(1) * err_r(1) + err_r(2) * err_r(2) );
-        float n_l = std::sqrt(err_l(0) * err_l(0) + err_l(1) * err_l(1) + err_l(2) * err_l(2) );
+        float n_r = std::sqrt(err_r(0) * err_r(0) + err_r(1) * err_r(1) + err_r(2) * err_r(2));
+        float n_l = std::sqrt(err_l(0) * err_l(0) + err_l(1) * err_l(1) + err_l(2) * err_l(2));
 
         geometry_msgs::WrenchStamped msg_f_r;
         geometry_msgs::WrenchStamped msg_f_l;
@@ -185,8 +182,9 @@ int main(int argc, char **argv)
         // std::cout << "error l: " << err_l.transpose() << std::endl;
         // std::cout << "n_r: " << n_r << " n_l: " << n_l << std::endl;
         // std::cout << "Object pose: " << xo[0] << ", " << xo[1] << ", " << xo[2] << std::endl;
+
         float force_threshold(0.05);
-       if (n_r <= force_threshold)
+        if (n_r <= force_threshold)
         {
             //compute force
             F_r = -K * err_r;
@@ -202,9 +200,9 @@ int main(int argc, char **argv)
         msg_f_r.wrench.force.x = F_r(0);
         msg_f_r.wrench.force.y = F_r(1);
         msg_f_r.wrench.force.z = F_r(2);
-        msg_f_r.wrench.torque.x = F_r(3);
-        msg_f_r.wrench.torque.y = F_r(4);
-        msg_f_r.wrench.torque.z = F_r(5);
+        msg_f_r.wrench.torque.x = F_r(3)*0;
+        msg_f_r.wrench.torque.y = F_r(4)*0.;
+        msg_f_r.wrench.torque.z = F_r(5)*0.;
 
         msg_f_r.header.stamp = ros::Time::now();
         msg_f_r.header.frame_id = "right_arm_7_link";
@@ -214,12 +212,13 @@ int main(int argc, char **argv)
         msg_f_l.wrench.force.x = F_l(0);
         msg_f_l.wrench.force.y = F_l(1);
         msg_f_l.wrench.force.z = F_l(2);
-        msg_f_l.wrench.torque.x = F_l(3);
-        msg_f_l.wrench.torque.y = F_l(4);
-        msg_f_l.wrench.torque.z = F_l(5);
+        msg_f_l.wrench.torque.x = F_l(3)*0.;
+        msg_f_l.wrench.torque.y = F_l(4)*0.;
+        msg_f_l.wrench.torque.z = F_l(5)*0.;
         msg_f_l.header.stamp = ros::Time::now();
         msg_f_l.header.frame_id = "left_arm_7_link";
         pub_force_l.publish(msg_f_l);
+        // std::cout << "forza misurata: " << F_l << std::endl;
 
         ros::spinOnce();
         rate.sleep();
@@ -227,12 +226,10 @@ int main(int argc, char **argv)
 
     // robotl.enableForceControl(1.);
     // robotr.enableForceControl(1.);
-
-
+    
     // pub_tau.publish(zero);
     ros::spinOnce();
 
     return 1.0;
 
 }
-

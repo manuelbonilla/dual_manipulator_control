@@ -39,8 +39,9 @@ public:
 
     bool init_robot(std::string name_in, KDL::Chain chain, double sampling_rate);
     void getJointSates(const sensor_msgs::JointState::ConstPtr msg);
-    Eigen::VectorXf getForceTorqueStates(){return ft_m;};
+    Eigen::VectorXf getForceTorqueStates(){return F;};
     void setForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg);
+    void setForceTorqueDesiredStates(Eigen::VectorXf f){Fdes = f;};
     void computeControl();
     void setReferences();
     Eigen::VectorXf getTau() {return tau;};
@@ -59,9 +60,10 @@ public:
     Eigen::VectorXf getC() {return C;};
     Eigen::VectorXf getErrors() {return error_q;};
     Eigen::VectorXf getCartErr() {return CartErr;};
+    Eigen::VectorXf getForceError() {return ForceError;};
     Eigen::MatrixXf getEEPose() {return EEPose;};
     Eigen::MatrixXf getXReference() {return EEReference;};
-    void enableForceControl(float a) {enable_force_control = a;};
+    void enableForceControl(float a, float b) {enable_force_control = a; k_i = b;};
     Eigen::VectorXf q, qp, qpp, tau, error_q, error_qp, q_ref, qp_ref, qpp_ref, ft_m, ft_d;
     int first_step;
 
@@ -86,6 +88,12 @@ private:
     Eigen::MatrixXf Adj_3;
     Eigen::MatrixXf EEPose;
     Eigen::MatrixXf EEReference;
+    Eigen::VectorXf Fdes;
+    Eigen::VectorXf ForceError;
+    Eigen::VectorXf F;
+    Eigen::VectorXf i_F_err;
+    double k_i;
+
     float enable_force_control;
     bool enabled_second_task;
 
@@ -113,6 +121,8 @@ bool Kuka_LWR::init_robot(std::string name_in, KDL::Chain chain, double sampling
     qp_ref =  Eigen::VectorXf::Zero(n_joints);
     qpp_ref =  Eigen::VectorXf::Zero(n_joints);
     CartErr =  Eigen::VectorXf::Zero(6);
+    Fdes =  Eigen::VectorXf::Zero(6);
+    ForceError =  Eigen::VectorXf::Zero(6);
     ft_m = Eigen::VectorXf::Zero(6);
     Adj = Eigen::MatrixXf::Zero(6, 6);
     Adj_skew = Eigen::MatrixXf::Zero(3, 3);
@@ -121,6 +131,7 @@ bool Kuka_LWR::init_robot(std::string name_in, KDL::Chain chain, double sampling
     C =  Eigen::VectorXf::Zero(n_joints);
     M =  Eigen::MatrixXf::Zero(n_joints, n_joints);
     J_ = Eigen::MatrixXf::Zero(6, n_joints);
+    F = Eigen::VectorXf::Zero(6);
     EEPose = Eigen::MatrixXf::Identity(4, 4);
     EEReference = Eigen::MatrixXf::Identity(4, 4);
     KDL::Vector gravity;
@@ -131,6 +142,8 @@ bool Kuka_LWR::init_robot(std::string name_in, KDL::Chain chain, double sampling
     dt = sampling_rate;
     enable_force_control = 0;
     enabled_second_task = false;
+    i_F_err=Eigen::VectorXf::Zero(6); 
+    k_i = 0;
 
     return true;
 }
@@ -160,11 +173,9 @@ void Kuka_LWR::getJointSates(const sensor_msgs::JointState::ConstPtr msg)
         qp_local(i) = msg->velocity[index[i]];
         qpp_local(i) = msg->effort[index[i]];
     }
-
     q = q_local;
     qp = qp_local;
     qpp = qpp_local;
-
 }
 
 void Kuka_LWR::setForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr msg)
@@ -179,8 +190,6 @@ void Kuka_LWR::setForceTorqueStates(const geometry_msgs::WrenchStamped::ConstPtr
 
 void Kuka_LWR::computeControl()
 {
-
-
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
@@ -190,7 +199,6 @@ void Kuka_LWR::computeControl()
     }
     EEReference(0, 3) = x_des.p(0); EEReference(1, 3) = x_des.p(1); EEReference(2, 3) = x_des.p(2);
 
-
     computeReferences(q_ref, qp_ref, qpp_ref);
 
     Eigen::MatrixXf Jt(7, 6);
@@ -199,17 +207,16 @@ void Kuka_LWR::computeControl()
     // k2 = Eigen::MatrixXf::Zero(6,6);
 
     k1 << 1, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0,
-    0, 0, 1, 0, 0, 0,
-    0, 0, 0, 1, 0, 0,
-    0, 0, 0, 0, 1, 0,
-    0, 0, 0, 0, 0, 1;
-    k1 = enable_force_control * k1;
+          0, 1, 0, 0, 0, 0,
+          0, 0, 1, 0, 0, 0,
+          0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0;
+    k1 = 1*enable_force_control * k1;
 
     Eigen::VectorXf twist_last(6);
     Eigen::VectorXf twist(6);
     twist = J_ * qp;
-    Eigen::VectorXf int_err_f(6);
 
     if (first_step) {
         twist_last = twist;
@@ -219,20 +226,29 @@ void Kuka_LWR::computeControl()
     Eigen::VectorXf pos_angle(6);
     pos_angle = (twist + twist_last) * dt;
 
+    Eigen::VectorXf int_err_f(6);
+    Eigen::VectorXf ForceError_last(6);
+     if (first_step) {
+        ForceError_last = ForceError;
+        first_step = 0;
+    }
+
+    int_err_f = (ForceError + ForceError_last) * dt;
+
     double angX = pos_angle(3);
     double angY = pos_angle(4);
     double angZ = pos_angle(5);
 
     Eigen::MatrixXf Rx(3, 3), Ry(3, 3), Rz(3, 3);
     Rz << cos(angZ), sin(angZ), 0,
-    -sin(angZ), cos(angZ), 0,
-    0, 0, 1;
+         -sin(angZ), cos(angZ), 0,
+          0, 0, 1;
     Ry << cos(angY), 0, -sin(angY),
-    0, 1, 0,
-    sin(angY), 0, cos(angY);
+          0, 1, 0,
+          sin(angY), 0, cos(angY);
     Rx << 1, 0, 0,
-    0, cos(angX), sin(angX),
-    0, -sin(angX), cos(angX);
+          0, cos(angX), sin(angX),
+          0, -sin(angX), cos(angX);
 
     Adj_3 = Rz * Ry * Rx;
 
@@ -241,29 +257,40 @@ void Kuka_LWR::computeControl()
     posY = pos_angle(1);
     posZ = pos_angle(2);
 
+    Eigen::MatrixXf Adj_test = Eigen::MatrixXf::Zero(3, 3);
+    Adj_test =  EEPose.block<3,3>(0,0);
     Adj_skew << 0, -posZ, posY,
-             posZ, 0, -posX,
-             -posY, posX, 0;
+                posZ, 0, -posX,
+               -posY, posX, 0;
 
-    Adj.topLeftCorner(3, 3) = Adj_3;
-    Adj.topRightCorner(3, 3) = Adj_skew;
-    Adj.bottomLeftCorner(3, 3) = Eigen::MatrixXf::Zero(3, 3);
-    Adj.bottomRightCorner(3, 3) = Adj_3;
+    Adj.topLeftCorner(3, 3) = Adj_test.transpose();
+    Adj.bottomLeftCorner(3, 3) = Adj_skew;
+    Adj.topRightCorner(3, 3) = Eigen::MatrixXf::Zero(3, 3);
+    Adj.bottomRightCorner(3, 3) = Adj_test.transpose();
 
-    Eigen::VectorXf F(6);
     F = Adj * ft_m;
+    // Fdes << 0, 0, 0, 0, 0, 0;
+    ForceError = F - Fdes;
 
-    Eigen::VectorXf Fdes(6);
-    Fdes << 0, 0, 0.1, 0, 0, 0;
+    if (enable_force_control > 0)
+    {
+        i_F_err = i_F_err + ForceError*dt;
+    }
+    // integrale =  1*k1*int_err_f;
+    // std::cout << "integrale" << integrale.transpose() <<std::endl;
 
-    tau = -300. * (q - q_ref) - 3. * (qp - qp_ref) + Jt * (k1 * (F - Fdes) /*+ k2*int_err_f*/);
+    tau = -300. * (q - q_ref) - 1. * (qp - qp_ref) + Jt * (k1 * (ForceError) + k_i*i_F_err);
+
+    // std::cout << "F" << F.transpose() << std::endl;  
+    // std::cout << "Fdes" << Fdes.transpose() << std::endl;
+    // std::cout << "Adj\n" << Adj << std::endl;
+    // std::cout << "ft_m" << ft_m.transpose() << std::endl;
 
     error_q = q - q_ref;
 }
 
 void Kuka_LWR::computeReferences(Eigen::VectorXf &q_local, Eigen::VectorXf &qp_local, Eigen::VectorXf &qpp_local )
 {
-
     KDL::Frame x;
     KDL::JntArrayAcc q_now(n_joints);
     for (int i = 0; i < n_joints; ++i)
@@ -374,9 +401,7 @@ void Kuka_LWR::computeReferences(Eigen::VectorXf &q_local, Eigen::VectorXf &qp_l
     saturateJointPositions(q_local);
 
     t_total += dt;
-
 }
-
 
 void Kuka_LWR::setJointStates(Eigen::MatrixXf q, Eigen::MatrixXf qp, Eigen::MatrixXf qpp)
 {
@@ -385,7 +410,6 @@ void Kuka_LWR::setJointStates(Eigen::MatrixXf q, Eigen::MatrixXf qp, Eigen::Matr
 
 void Kuka_LWR::saturateJointVelocities(Eigen::VectorXf &qp, float percentage)
 {
-
     const double deg2rad = M_PI  / 180.0;
 
     std::vector<double> vel_limits;
@@ -408,7 +432,6 @@ void Kuka_LWR::saturateJointVelocities(Eigen::VectorXf &qp, float percentage)
 
 void Kuka_LWR::saturateJointPositions( Eigen::VectorXf &q, double soft_limit )
 {
-
     const double deg2rad = M_PI  / 180.0;
 
     std::vector<double> pos_limit;
@@ -419,8 +442,6 @@ void Kuka_LWR::saturateJointPositions( Eigen::VectorXf &q, double soft_limit )
     pos_limit.push_back ( (170.0 * deg2rad) - soft_limit );
     pos_limit.push_back ( (120.0 * deg2rad) - soft_limit );
     pos_limit.push_back ( (170.0 * deg2rad) - soft_limit );
-
-
 
     for (unsigned i = 0; i < q.rows(); ++i) {
         if ( std::abs(q(i)) >= pos_limit[i] )
